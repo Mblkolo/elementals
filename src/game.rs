@@ -32,10 +32,14 @@ impl World {
     #[wasm_bindgen(constructor)]
     pub fn new() -> World {
         World {
-            enemies: vec![Enemy {
-                color: Color::Red,
-                pos: Point { x: 10.0, y: 5.0 },
-            }],
+            enemies: (0..10)
+                .map(|i| Enemy {
+                    color: Color::Red,
+                    pos: Point {
+                        x: 10.0 + i as f32,
+                        y: 5.0 + (2 * i) as f32,
+                    },
+                }).collect(),
         }
     }
 
