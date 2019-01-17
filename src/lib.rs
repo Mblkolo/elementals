@@ -1,6 +1,7 @@
-extern crate cfg_if;
+﻿extern crate cfg_if;
 extern crate wasm_bindgen;
 
+pub mod game;
 mod utils;
 
 use cfg_if::cfg_if;
@@ -17,11 +18,13 @@ cfg_if! {
 }
 
 #[wasm_bindgen]
-extern {
+extern "C" {
     fn alert(s: &str);
 }
 
 #[wasm_bindgen]
-pub fn greet() {
-    alert("Hello, elementals!");
+pub fn greet() -> game::Point {
+    alert("Ничёси! Это работает!");
+
+    game::Point { x: 0.5, y: -0.234 }
 }
