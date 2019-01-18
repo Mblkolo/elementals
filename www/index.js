@@ -29,4 +29,4 @@ function draw() {
 setInterval(() => {
     draw();
     world.step();
-}, 1000);
+}, 20);
