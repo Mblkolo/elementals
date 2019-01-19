@@ -2,21 +2,22 @@ import * as wasm from "elementals";
 import { World } from "elementals";
 
 const world = new World();
-//const point = wasm.greet();
-console.log(world.enemies_count());
-console.log(world.enemy(0));
-console.log(world.enemy(0).pos.x);
 
-const CELL_SIZE = 5; // px
+const CELL_SIZE = 20; // px
+const CANVAS_SIZE = 1000; // px
 
 const canvas = document.getElementById("game-canvas");
-canvas.height = 500;
-canvas.width = 500;
+canvas.height = CANVAS_SIZE;
+canvas.width = CANVAS_SIZE;
+
+canvas.addEventListener("mousemove", event => {
+    world.set_player_pos(event.offsetX / CELL_SIZE, event.offsetY / CELL_SIZE);
+});
 
 const ctx = canvas.getContext("2d");
 
 function draw() {
-    ctx.clearRect(0, 0, 500, 500);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let i = 0; i < world.enemies_count(); ++i) {
         const enemy = world.enemy(i);
         ctx.beginPath();
@@ -24,6 +25,14 @@ function draw() {
         ctx.stroke();
         enemy.free();
     }
+
+    const player = world.get_player_pos();
+
+    ctx.beginPath();
+    ctx.arc(player.x * CELL_SIZE, player.y * CELL_SIZE, CELL_SIZE / 2, 0, 2 * Math.PI);
+    ctx.stroke();
+
+    player.free();
 }
 
 setInterval(() => {

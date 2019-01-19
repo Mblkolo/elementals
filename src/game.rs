@@ -3,6 +3,7 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 pub struct World {
     enemies: Vec<Enemy>,
+    player_pos: Point,
 }
 
 #[wasm_bindgen]
@@ -64,6 +65,7 @@ impl World {
     #[wasm_bindgen(constructor)]
     pub fn new() -> World {
         World {
+            player_pos: Point { x: 0., y: 0. },
             enemies: (0..10)
                 .map(|i| Enemy {
                     color: Color::Red,
@@ -78,10 +80,10 @@ impl World {
     //фиксированная частота обновления: 20мс
     pub fn step(&mut self) {
         const INTERVAL: f32 = 0.02;
-        const TARGET: Point = Point { x: 12., y: 12. };
+        let TARGET: Point = self.player_pos;
+        const ENEMY_SPEED: f32 = 4.;
 
-        let len = self.enemies.len();
-        for enemy_id in 0..len {
+        for enemy_id in 0..self.enemies.len() {
             let new_pos = {
                 let enemy = &self.enemies[enemy_id];
 
@@ -89,8 +91,8 @@ impl World {
                 vector.normalize();
 
                 Point {
-                    x: enemy.pos.x + vector.x * INTERVAL,
-                    y: enemy.pos.y + vector.y * INTERVAL,
+                    x: enemy.pos.x + vector.x * INTERVAL * ENEMY_SPEED,
+                    y: enemy.pos.y + vector.y * INTERVAL * ENEMY_SPEED,
                 }
             };
 
@@ -100,6 +102,14 @@ impl World {
             }
         }
     }
+
+    pub fn set_player_pos(&mut self, x: f32, y: f32) {
+        self.player_pos = Point { x: x, y: y }
+    }
+
+    pub fn get_player_pos(&mut self) -> Point {
+        self.player_pos
+    }
 }
 
 fn has_collision(enemies: &Vec<Enemy>, point: &Point, exclude_id: usize) -> bool {
@@ -108,8 +118,8 @@ fn has_collision(enemies: &Vec<Enemy>, point: &Point, exclude_id: usize) -> bool
             continue;
         }
         let vector = enemy.pos.sub(point);
-        let len = abs(vector.x) + abs(vector.y);
-        if len < 1. {
+        let len = abs(vector.x * vector.x) + abs(vector.y * vector.y);
+        if len < 1.0 * 1.0 {
             return true;
         }
     }
