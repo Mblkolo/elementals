@@ -11,7 +11,29 @@ canvas.height = CANVAS_SIZE;
 canvas.width = CANVAS_SIZE;
 
 canvas.addEventListener("mousemove", event => {
-    world.set_player_pos(event.offsetX / CELL_SIZE, event.offsetY / CELL_SIZE);
+    //world.set_player_pos(event.offsetX / CELL_SIZE, event.offsetY / CELL_SIZE);
+});
+
+let player_speed = { x: 0, y: 0 };
+
+document.addEventListener("keydown", event => {
+    if (event.code == "KeyA") player_speed.x = -1;
+    if (event.code == "KeyD") player_speed.x = +1;
+
+    if (event.code == "KeyS") player_speed.y = +1;
+    if (event.code == "KeyW") player_speed.y = -1;
+
+    world.set_player_speed(player_speed.x, player_speed.y);
+});
+
+document.addEventListener("keyup", event => {
+    if (event.code == "KeyA") player_speed.x = 0;
+    if (event.code == "KeyD") player_speed.x = 0;
+
+    if (event.code == "KeyS") player_speed.y = 0;
+    if (event.code == "KeyW") player_speed.y = 0;
+
+    world.set_player_speed(player_speed.x, player_speed.y);
 });
 
 const ctx = canvas.getContext("2d");

@@ -3,7 +3,7 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 pub struct World {
     enemies: Vec<Enemy>,
-    player_pos: Point,
+    player: Player,
 }
 
 #[wasm_bindgen]
@@ -26,6 +26,11 @@ pub enum Color {
 pub struct Point {
     pub x: f32,
     pub y: f32,
+}
+
+struct Player {
+    pos: Point,
+    speed: Vector,
 }
 
 impl Point {
@@ -65,7 +70,10 @@ impl World {
     #[wasm_bindgen(constructor)]
     pub fn new() -> World {
         World {
-            player_pos: Point { x: 0., y: 0. },
+            player: Player {
+                pos: Point { x: 0., y: 0. },
+                speed: Vector { x: 0., y: 0. },
+            },
             enemies: (0..10)
                 .map(|i| Enemy {
                     color: Color::Red,
@@ -80,9 +88,13 @@ impl World {
     //фиксированная частота обновления: 20мс
     pub fn step(&mut self) {
         const INTERVAL: f32 = 0.02;
-        let TARGET: Point = self.player_pos;
         const ENEMY_SPEED: f32 = 4.;
+        const PLAYER_SPEED: f32 = 5.;
 
+        self.player.pos.x += self.player.speed.x * INTERVAL * PLAYER_SPEED;
+        self.player.pos.y += self.player.speed.y * INTERVAL * PLAYER_SPEED;
+
+        let TARGET: Point = self.player.pos;
         for enemy_id in 0..self.enemies.len() {
             let new_pos = {
                 let enemy = &self.enemies[enemy_id];
@@ -104,11 +116,15 @@ impl World {
     }
 
     pub fn set_player_pos(&mut self, x: f32, y: f32) {
-        self.player_pos = Point { x: x, y: y }
+        self.player.pos = Point { x: x, y: y }
     }
 
     pub fn get_player_pos(&mut self) -> Point {
-        self.player_pos
+        self.player.pos
+    }
+
+    pub fn set_player_speed(&mut self, x: f32, y: f32) {
+        self.player.speed = Vector { x, y };
     }
 }
 
