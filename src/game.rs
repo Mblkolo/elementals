@@ -31,6 +31,30 @@ pub struct Point {
 struct Player {
     pos: Point,
     speed: Vector,
+    gun: Gun,
+    firing: bool,
+}
+
+const RELOAD_TICKS: i32 = 25;
+struct Gun {
+    target: Point,
+    ticks_to_fire: i32,
+}
+
+impl Gun {
+    fn can_fire(&self) -> bool {
+        self.ticks_to_fire == 0
+    }
+
+    fn fire(&mut self) {
+        self.ticks_to_fire = RELOAD_TICKS;
+    }
+
+    fn wait(&mut self) {
+        if self.ticks_to_fire > 0 {
+            self.ticks_to_fire -= 1;
+        }
+    }
 }
 
 impl Point {
@@ -73,6 +97,11 @@ impl World {
             player: Player {
                 pos: Point { x: 0., y: 0. },
                 speed: Vector { x: 0., y: 0. },
+                gun: Gun {
+                    ticks_to_fire: 0,
+                    target: Point { x: 0., y: 0. },
+                },
+                firing: false,
             },
             enemies: (0..10)
                 .map(|i| Enemy {
@@ -93,6 +122,15 @@ impl World {
 
         self.player.pos.x += self.player.speed.x * INTERVAL * PLAYER_SPEED;
         self.player.pos.y += self.player.speed.y * INTERVAL * PLAYER_SPEED;
+
+        if self.player.firing && self.player.gun.can_fire() {
+            self.player.gun.fire();
+
+            let target = &self.player.gun.target;
+            self.enemies.retain(|e| point_in_enemy(e, target) == false);
+        } else {
+            self.player.gun.wait();
+        }
 
         let TARGET: Point = self.player.pos;
         for enemy_id in 0..self.enemies.len() {
@@ -126,6 +164,19 @@ impl World {
     pub fn set_player_speed(&mut self, x: f32, y: f32) {
         self.player.speed = Vector { x, y };
     }
+
+    pub fn set_gan_target(&mut self, x: f32, y: f32) {
+        self.player.gun.target = Point { x, y };
+    }
+
+    pub fn set_firing(&mut self, firing: bool) {
+        self.player.firing = firing;
+    }
+}
+
+fn point_in_enemy(enemy: &Enemy, point: &Point) -> bool {
+    let distance = enemy.pos.sub(point);
+    distance.x * distance.x + distance.y * distance.y < 0.5 * 0.5
 }
 
 fn has_collision(enemies: &Vec<Enemy>, point: &Point, exclude_id: usize) -> bool {

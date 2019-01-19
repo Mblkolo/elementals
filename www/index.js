@@ -11,7 +11,16 @@ canvas.height = CANVAS_SIZE;
 canvas.width = CANVAS_SIZE;
 
 canvas.addEventListener("mousemove", event => {
-    //world.set_player_pos(event.offsetX / CELL_SIZE, event.offsetY / CELL_SIZE);
+    world.set_gan_target(event.offsetX / CELL_SIZE, event.offsetY / CELL_SIZE);
+});
+
+document.addEventListener("mousedown", event => {
+    console.log(event);
+    world.set_firing(true);
+});
+
+document.addEventListener("mouseup", event => {
+    world.set_firing(false);
 });
 
 let player_speed = { x: 0, y: 0 };
@@ -51,7 +60,7 @@ function draw() {
     const player = world.get_player_pos();
 
     ctx.beginPath();
-    ctx.arc(player.x * CELL_SIZE, player.y * CELL_SIZE, CELL_SIZE / 2, 0, 2 * Math.PI);
+    ctx.arc(player.x * CELL_SIZE, player.y * CELL_SIZE, CELL_SIZE / 4, 0, 2 * Math.PI);
     ctx.stroke();
 
     player.free();
