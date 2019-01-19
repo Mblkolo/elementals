@@ -64,6 +64,11 @@ impl Point {
             y: self.y - point.y,
         }
     }
+
+    fn translate(&mut self, dx: f32, dy: f32) {
+        self.x += dx;
+        self.y += dy;
+    }
 }
 
 struct Vector {
@@ -192,6 +197,62 @@ fn has_collision(enemies: &Vec<Enemy>, point: &Point, exclude_id: usize) -> bool
     }
 
     false
+}
+
+use na::Real;
+
+fn get_enemy_heat(player_pos: Point, gun_target: Point, enemy: &Enemy) -> Option<Point> {
+    None
+}
+
+fn get_cross_points_with_shere(
+    center: Point,
+    radius: f32,
+    mut from: Point,
+    mut to: Point,
+) -> Vec<Point> {
+    from.translate(-center.x, -center.y);
+    to.translate(-center.x, -center.y);
+
+    let mut result = get_cross_points(radius, from, to);
+    for point in &mut result {
+        point.translate(center.x, center.y);
+    }
+
+    result
+}
+
+fn get_cross_points(radius: f32, from: Point, to: Point) -> Vec<Point> {
+    const EPS: f32 = 0.000001;
+
+    let a = from.y - to.y;
+    let b = to.x - from.x;
+    let c = from.x * to.y - to.x * from.y;
+
+    let len = a * a + b * b;
+    let x0 = -a * c / len;
+    let y0 = -b * c / len;
+    if c * c > radius * radius * len + EPS {
+        return vec![];
+    }
+    if abs(c * c - radius * radius * len) < EPS {
+        return vec![Point { x: x0, y: y0 }];
+    }
+
+    let d = radius * radius - c * c / len;
+    let multiplicands = Real::sqrt(d / len);
+
+    let point1 = Point {
+        x: x0 + b * multiplicands,
+        y: y0 - a * multiplicands,
+    };
+
+    let point2 = Point {
+        x: x0 - b * multiplicands,
+        y: y0 + a * multiplicands,
+    };
+
+    return vec![point1, point2];
 }
 
 #[wasm_bindgen]

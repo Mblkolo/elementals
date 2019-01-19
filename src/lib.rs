@@ -1,4 +1,5 @@
 ﻿extern crate cfg_if;
+extern crate nalgebra as na;
 extern crate wasm_bindgen;
 
 pub mod game;
