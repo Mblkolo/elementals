@@ -7,6 +7,7 @@ pub struct World {
     player: Player,
     latest_heat: Point,
     rand: Rand,
+    game_over: bool,
 }
 
 #[wasm_bindgen]
@@ -114,6 +115,7 @@ impl World {
                 firing: false,
             },
             latest_heat: Point { x: 0., y: 0. },
+            game_over: false,
             rand: Rand::new(0),
             enemies: (0..10)
                 .map(|i| Enemy {
@@ -128,6 +130,15 @@ impl World {
 
     //фиксированная частота обновления: 20мс
     pub fn step(&mut self) {
+        if (self.game_over) {
+            return;
+        }
+
+        if player_has_collision(&self.player.pos, &self.enemies) {
+            self.game_over = true;
+            return;
+        }
+
         const INTERVAL: f32 = 0.02;
         const ENEMY_SPEED: f32 = 4.;
         const PLAYER_SPEED: f32 = 8.;
@@ -226,24 +237,31 @@ impl World {
     }
 }
 
-fn point_in_enemy(enemy: &Enemy, point: &Point) -> bool {
-    let distance = enemy.pos.sub(point);
-    distance.x * distance.x + distance.y * distance.y < 0.5 * 0.5
-}
-
 fn has_collision(enemies: &Vec<Enemy>, point: &Point, exclude_id: usize) -> bool {
     for (i, enemy) in enemies.iter().enumerate() {
         if i == exclude_id {
             continue;
         }
-        let vector = enemy.pos.sub(point);
-        let len = abs(vector.x * vector.x) + abs(vector.y * vector.y);
-        if len < 1.0 * 1.0 {
+
+        if has_circles_collision(&enemy.pos, point, 0.5 + 0.5) {
             return true;
         }
     }
 
     false
+}
+
+fn player_has_collision(player_pos: &Point, enemies: &Vec<Enemy>) -> bool {
+    enemies
+        .iter()
+        .any(|e| has_circles_collision(&e.pos, player_pos, 0.5 + 0.1))
+}
+
+fn has_circles_collision(a: &Point, b: &Point, distance: f32) -> bool {
+    let vector = a.sub(b);
+    let len = abs(vector.x * vector.x) + abs(vector.y * vector.y);
+
+    len < distance
 }
 
 use na::Real;
