@@ -4,6 +4,7 @@ use wasm_bindgen::prelude::*;
 pub struct World {
     enemies: Vec<Enemy>,
     player: Player,
+    latest_heat: Point,
 }
 
 #[wasm_bindgen]
@@ -35,7 +36,7 @@ struct Player {
     firing: bool,
 }
 
-const RELOAD_TICKS: i32 = 25;
+const RELOAD_TICKS: i32 = 5;
 struct Gun {
     target: Point,
     ticks_to_fire: i32,
@@ -108,6 +109,7 @@ impl World {
                 },
                 firing: false,
             },
+            latest_heat: Point { x: 0., y: 0. },
             enemies: (0..10)
                 .map(|i| Enemy {
                     color: Color::Red,
@@ -131,18 +133,29 @@ impl World {
         if self.player.firing && self.player.gun.can_fire() {
             self.player.gun.fire();
 
-            let target = &self.player.gun.target;
-            self.enemies.retain(|e| point_in_enemy(e, target) == false);
+            let target = self.player.gun.target;
+            //self.enemies.retain(|e| point_in_enemy(e, target) == false);
+            let fired_enemy = get_fired_enemy(self.player.pos, target, &self.enemies);
+            if let Some(enemy) = fired_enemy {
+                // let pos = match self.enemies.iter().position(|x| *x == **enemy.0) {
+                //     Some(x) => x,
+                //     None => return None,
+                // };
+
+                //self.enemies.retain(|e| *enemy.0 == *e);
+                self.latest_heat = enemy.1;
+            }
         } else {
             self.player.gun.wait();
         }
 
-        let TARGET: Point = self.player.pos;
+        return;
+        let target: Point = self.player.pos;
         for enemy_id in 0..self.enemies.len() {
             let new_pos = {
                 let enemy = &self.enemies[enemy_id];
 
-                let mut vector = TARGET.sub(&enemy.pos);
+                let mut vector = target.sub(&enemy.pos);
                 vector.normalize();
 
                 Point {
@@ -200,12 +213,61 @@ fn has_collision(enemies: &Vec<Enemy>, point: &Point, exclude_id: usize) -> bool
 }
 
 use na::Real;
+use std::cmp::Ordering;
 
-fn get_enemy_heat(player_pos: Point, gun_target: Point, enemy: &Enemy) -> Option<Point> {
-    None
+fn get_fired_enemy(
+    player_pos: Point,
+    gun_target: Point,
+    enemies: &Vec<Enemy>,
+) -> Option<(&Enemy, Point)> {
+    let mut fired_enemies = enemies
+        .iter()
+        .filter_map(|e| {
+            let heat_point = get_enemy_heat_point(player_pos, gun_target, e);
+            match heat_point {
+                Some(point) => Some((e, point)),
+                _ => None,
+            }
+        }).collect::<Vec<_>>();
+
+    fired_enemies.sort_by(|a, b| {
+        let da = a.1.sub(&player_pos);
+        let db = b.1.sub(&player_pos);
+
+        compare_len(&da, &db)
+    });
+
+    match fired_enemies.len() {
+        0 => None,
+        _ => Some(fired_enemies[0]),
+    }
 }
 
-fn get_cross_points_with_shere(
+fn compare_len(da: &Vector, db: &Vector) -> Ordering {
+    let a_len = da.x * da.x + da.y * da.y;
+    let b_len = db.x * db.x + db.y * db.y;
+
+    a_len.partial_cmp(&b_len).unwrap()
+}
+
+fn get_enemy_heat_point(player_pos: Point, gun_target: Point, enemy: &Enemy) -> Option<Point> {
+    let mut cross_points = get_cross_points_with_sphere(enemy.pos, 0.5, player_pos, gun_target);
+
+    //из всех точек выбираем самую ближайшую
+    cross_points.sort_by(|a, b| {
+        let da = a.sub(&player_pos);
+        let db = b.sub(&player_pos);
+
+        compare_len(&da, &db)
+    });
+
+    match cross_points.len() {
+        0 => None,
+        _ => Some(cross_points[0]),
+    }
+}
+
+fn get_cross_points_with_sphere(
     center: Point,
     radius: f32,
     mut from: Point,
@@ -263,5 +325,9 @@ impl World {
 
     pub fn enemy(&self, no: usize) -> Enemy {
         self.enemies[no]
+    }
+
+    pub fn latest_heat(&self) -> Point {
+        self.latest_heat
     }
 }

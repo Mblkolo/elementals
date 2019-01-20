@@ -64,6 +64,12 @@ function draw() {
     ctx.stroke();
 
     player.free();
+
+    const latest_heat = world.latest_heat();
+    ctx.beginPath();
+    ctx.arc(latest_heat.x * CELL_SIZE, latest_heat.y * CELL_SIZE, CELL_SIZE / 8, 0, 2 * Math.PI);
+    ctx.stroke();
+    latest_heat.free();
 }
 
 setInterval(() => {
