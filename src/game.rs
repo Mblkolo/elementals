@@ -95,6 +95,8 @@ impl Vector {
     }
 }
 
+use std::ptr;
+
 #[wasm_bindgen]
 impl World {
     #[wasm_bindgen(constructor)]
@@ -134,22 +136,25 @@ impl World {
             self.player.gun.fire();
 
             let target = self.player.gun.target;
-            //self.enemies.retain(|e| point_in_enemy(e, target) == false);
-            let fired_enemy = get_fired_enemy(self.player.pos, target, &self.enemies);
-            if let Some(enemy) = fired_enemy {
-                // let pos = match self.enemies.iter().position(|x| *x == **enemy.0) {
-                //     Some(x) => x,
-                //     None => return None,
-                // };
 
-                //self.enemies.retain(|e| *enemy.0 == *e);
-                self.latest_heat = enemy.1;
+            let may_be_pos = {
+                let fired_enemy = get_fired_enemy(self.player.pos, target, &self.enemies);
+                match fired_enemy {
+                    None => None,
+                    Some(enemy) => {
+                        self.latest_heat = enemy.1;
+                        self.enemies.iter().position(|e| ptr::eq(e, enemy.0))
+                    }
+                }
+            };
+
+            if let Some(pos) = may_be_pos {
+                self.enemies.remove(pos);
             }
         } else {
             self.player.gun.wait();
         }
 
-        return;
         let target: Point = self.player.pos;
         for enemy_id in 0..self.enemies.len() {
             let new_pos = {
