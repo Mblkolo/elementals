@@ -67,7 +67,10 @@ function draw() {
 
     const latest_heat = world.latest_heat();
     ctx.beginPath();
-    ctx.arc(latest_heat.x * CELL_SIZE, latest_heat.y * CELL_SIZE, CELL_SIZE / 8, 0, 2 * Math.PI);
+    ctx.moveTo(latest_heat.x * CELL_SIZE - CELL_SIZE / 8, latest_heat.y * CELL_SIZE - CELL_SIZE / 8);
+    ctx.lineTo(latest_heat.x * CELL_SIZE + CELL_SIZE / 8, latest_heat.y * CELL_SIZE + CELL_SIZE / 8);
+    ctx.moveTo(latest_heat.x * CELL_SIZE - CELL_SIZE / 8, latest_heat.y * CELL_SIZE + CELL_SIZE / 8);
+    ctx.lineTo(latest_heat.x * CELL_SIZE + CELL_SIZE / 8, latest_heat.y * CELL_SIZE - CELL_SIZE / 8);
     ctx.stroke();
     latest_heat.free();
 }

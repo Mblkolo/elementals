@@ -1,3 +1,4 @@
+use rand::Rand;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -5,6 +6,7 @@ pub struct World {
     enemies: Vec<Enemy>,
     player: Player,
     latest_heat: Point,
+    rand: Rand,
 }
 
 #[wasm_bindgen]
@@ -112,6 +114,7 @@ impl World {
                 firing: false,
             },
             latest_heat: Point { x: 0., y: 0. },
+            rand: Rand::new(0),
             enemies: (0..10)
                 .map(|i| Enemy {
                     color: Color::Red,
@@ -127,7 +130,7 @@ impl World {
     pub fn step(&mut self) {
         const INTERVAL: f32 = 0.02;
         const ENEMY_SPEED: f32 = 4.;
-        const PLAYER_SPEED: f32 = 5.;
+        const PLAYER_SPEED: f32 = 8.;
 
         self.player.pos.x += self.player.speed.x * INTERVAL * PLAYER_SPEED;
         self.player.pos.y += self.player.speed.y * INTERVAL * PLAYER_SPEED;
@@ -150,6 +153,32 @@ impl World {
 
             if let Some(pos) = may_be_pos {
                 self.enemies.remove(pos);
+
+                let new_pos = Point {
+                    x: (self.rand.rand() % 50) as f32,
+                    y: (self.rand.rand() % 50) as f32,
+                };
+
+                let enemy = Enemy {
+                    pos: new_pos,
+                    color: Color::Blue,
+                };
+
+                self.enemies.push(enemy);
+
+                if self.rand.rand() % 3 == 0 {
+                    let new_pos = Point {
+                        x: (self.rand.rand() % 50) as f32,
+                        y: (self.rand.rand() % 50) as f32,
+                    };
+
+                    let enemy = Enemy {
+                        pos: new_pos,
+                        color: Color::Blue,
+                    };
+
+                    self.enemies.push(enemy);
+                }
             }
         } else {
             self.player.gun.wait();

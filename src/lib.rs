@@ -3,6 +3,7 @@ extern crate nalgebra as na;
 extern crate wasm_bindgen;
 
 pub mod game;
+mod rand;
 mod utils;
 
 use cfg_if::cfg_if;
