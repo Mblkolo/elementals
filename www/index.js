@@ -49,6 +49,13 @@ const ctx = canvas.getContext("2d");
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = "#444";
+    ctx.fillText(world.get_scope(), 950, 50);
+
+    ctx.strokeStyle = "#000";
+
     for (let i = 0; i < world.enemies_count(); ++i) {
         const enemy = world.enemy(i);
         ctx.beginPath();

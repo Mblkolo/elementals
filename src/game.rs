@@ -8,6 +8,7 @@ pub struct World {
     latest_heat: Point,
     rand: Rand,
     game_over: bool,
+    scope: i32,
 }
 
 #[wasm_bindgen]
@@ -104,9 +105,12 @@ use std::ptr;
 impl World {
     #[wasm_bindgen(constructor)]
     pub fn new() -> World {
+        let mut rand = Rand::new(0);
+        let enemies = (0..10).map(|i| create_enemy(&mut rand)).collect::<Vec<_>>();
+
         World {
             player: Player {
-                pos: Point { x: 0., y: 0. },
+                pos: Point { x: 25., y: 25. },
                 speed: Vector { x: 0., y: 0. },
                 gun: Gun {
                     ticks_to_fire: 0,
@@ -114,23 +118,17 @@ impl World {
                 },
                 firing: false,
             },
-            latest_heat: Point { x: 0., y: 0. },
+            latest_heat: Point { x: -10., y: -10. },
             game_over: false,
-            rand: Rand::new(0),
-            enemies: (0..10)
-                .map(|i| Enemy {
-                    color: Color::Red,
-                    pos: Point {
-                        x: 10.0 + i as f32,
-                        y: 5.0 + (2 * i) as f32,
-                    },
-                }).collect(),
+            scope: 0,
+            rand: rand,
+            enemies: enemies,
         }
     }
 
     //фиксированная частота обновления: 20мс
     pub fn step(&mut self) {
-        if (self.game_over) {
+        if self.game_over {
             return;
         }
 
@@ -164,31 +162,12 @@ impl World {
 
             if let Some(pos) = may_be_pos {
                 self.enemies.remove(pos);
+                self.scope += 1;
 
-                let new_pos = Point {
-                    x: (self.rand.rand() % 50) as f32,
-                    y: (self.rand.rand() % 50) as f32,
-                };
-
-                let enemy = Enemy {
-                    pos: new_pos,
-                    color: Color::Blue,
-                };
-
-                self.enemies.push(enemy);
+                self.enemies.push(create_enemy(&mut self.rand));
 
                 if self.rand.rand() % 3 == 0 {
-                    let new_pos = Point {
-                        x: (self.rand.rand() % 50) as f32,
-                        y: (self.rand.rand() % 50) as f32,
-                    };
-
-                    let enemy = Enemy {
-                        pos: new_pos,
-                        color: Color::Blue,
-                    };
-
-                    self.enemies.push(enemy);
+                    self.enemies.push(create_enemy(&mut self.rand));
                 }
             }
         } else {
@@ -234,6 +213,25 @@ impl World {
 
     pub fn set_firing(&mut self, firing: bool) {
         self.player.firing = firing;
+    }
+}
+
+fn create_enemy(rand: &mut Rand) -> Enemy {
+    let new_pos = if rand.rand() % 2 == 0 {
+        Point {
+            x: (25 + 24 * ((rand.rand() % 2) * 2 - 1)) as f32,
+            y: (rand.rand() % 50) as f32,
+        }
+    } else {
+        Point {
+            x: (rand.rand() % 50) as f32,
+            y: (25 + 24 * ((rand.rand() % 2) * 2 - 1)) as f32,
+        }
+    };
+
+    Enemy {
+        pos: new_pos,
+        color: Color::Blue,
     }
 }
 
@@ -381,5 +379,9 @@ impl World {
 
     pub fn latest_heat(&self) -> Point {
         self.latest_heat
+    }
+
+    pub fn get_scope(&self) -> i32 {
+        self.scope
     }
 }
