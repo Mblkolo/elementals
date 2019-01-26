@@ -1,21 +1,87 @@
-import * as wasm from "elementals";
-import { World } from "elementals";
+import * as wasm from "../pkg";
+import nipplejs from "nipplejs";
 
-const world = new World();
+const world = new wasm.World();
 
 const CELL_SIZE = 20; // px
-const CANVAS_SIZE = 1000; // px
 
 const canvas = document.getElementById("game-canvas");
-canvas.height = CANVAS_SIZE;
-canvas.width = CANVAS_SIZE;
+canvas.height = window.innerHeight;
+canvas.width = window.innerWidth;
+
+const debugEl = document.getElementById("debug");
+function debug(info) {
+    debugEl.innerHTML = JSON.stringify(info, 0, 2);
+}
+
+var isTouchDevice = "ontouchstart" in document.documentElement;
+if (isTouchDevice) {
+    // screen joysticks
+
+    const moveJoystick = nipplejs.create({
+        zone: document.getElementById("left-joystick-zone"),
+        color: "blue"
+    });
+
+    moveJoystick.on("end move", (event, data) => {
+        if (event.type === "end") {
+            world.set_player_speed(0, 0);
+            return;
+        }
+
+        if (data.direction) {
+            let x = data.instance.frontPosition.x / 50;
+            let y = data.instance.frontPosition.y / 50;
+
+            world.set_player_speed(x, y);
+        }
+    });
+
+    const fireJoystick = nipplejs.create({
+        zone: document.getElementById("right-joystick-zone"),
+        color: "red"
+    });
+
+    const aimEl = document.getElementById("player-aim");
+
+    fireJoystick.on("start end move", (event, data) => {
+        switch (event.type) {
+            case "start":
+                world.set_firing(true);
+                break;
+            case "end":
+                world.set_firing(false);
+                break;
+            case "move":
+                if (data.direction) {
+                    const frontPosition = data.instance.frontPosition;
+
+                    const player = world.get_player_pos();
+
+                    const aimPosX = player.x * CELL_SIZE + frontPosition.x;
+                    const aimPosY = player.y * CELL_SIZE + frontPosition.y;
+
+                    aimEl.style.left = `${aimPosX}px`;
+                    aimEl.style.top = `${aimPosY}px`;
+                    player.free();
+
+                    world.set_gan_target(aimPosX / CELL_SIZE, aimPosY / CELL_SIZE);
+                }
+                break;
+
+            default:
+                break;
+        }
+    });
+}
+
+// mouse
 
 canvas.addEventListener("mousemove", event => {
     world.set_gan_target(event.offsetX / CELL_SIZE, event.offsetY / CELL_SIZE);
 });
 
 document.addEventListener("mousedown", event => {
-    console.log(event);
     world.set_firing(true);
 });
 
@@ -23,7 +89,9 @@ document.addEventListener("mouseup", event => {
     world.set_firing(false);
 });
 
-let player_speed = { x: 0, y: 0 };
+// keyboard
+
+const player_speed = { x: 0, y: 0 };
 
 document.addEventListener("keydown", event => {
     if (event.code == "KeyA") player_speed.x = -1;
