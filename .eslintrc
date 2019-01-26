@@ -1,0 +1,10 @@
+{
+    "rules": {
+        "no-undef": "error",
+        "no-unused-vars": "warn"
+    },
+    "env": { "browser": true },
+    "parserOptions": {
+        "sourceType": "module"
+    }
+}

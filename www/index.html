@@ -2,10 +2,56 @@
 <html>
     <head>
         <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+
         <title>Hello wasm-pack!</title>
+        <style>
+            body {
+                position: fixed;
+                margin: 0;
+                -webkit-user-select: none;
+            }
+
+            #debug {
+                position: fixed;
+                left: 10px;
+                top: 10px;
+                white-space: pre;
+                font: 10px sans-serif;
+            }
+
+            #right-joystick-zone {
+                position: fixed;
+                width: 50%;
+                height: 100%;
+                top: 0;
+                right: 0;
+            }
+
+            #left-joystick-zone {
+                position: fixed;
+                width: 50%;
+                height: 100%;
+                top: 0;
+                left: 0;
+            }
+
+            #player-aim {
+                position: fixed;
+                width: 4px;
+                height: 4px;
+                border-radius: 50%;
+                background: rgba(255, 0, 0, 0.7);
+                top: 10px;
+            }
+        </style>
     </head>
     <body>
         <canvas id="game-canvas"></canvas>
+        <div id="debug"></div>
+        <div id="right-joystick-zone"></div>
+        <div id="left-joystick-zone"></div>
+        <div id="player-aim"></div>
         <script src="./bootstrap.js"></script>
     </body>
 </html>
