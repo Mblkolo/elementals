@@ -3,6 +3,9 @@ import nipplejs from "nipplejs";
 
 const world = new wasm.World();
 
+const game = new wasm.Game();
+console.log(game.get_state());
+
 const CELL_SIZE = 20; // px
 
 const canvas = document.getElementById("game-canvas");

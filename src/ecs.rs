@@ -7,7 +7,7 @@ pub struct MainState {
     input: Input,
 }
 
-struct Input {
+pub struct Input {
     player_direction: Vector2<f32>,
 }
 
@@ -37,7 +37,7 @@ impl MainState {
         }
     }
 
-    pub fn fill(self: &mut MainState) {
+    pub fn init(self: &mut MainState) {
         self.world.append_components(Some((
             Player { max_speed: 6. },
             Position {
