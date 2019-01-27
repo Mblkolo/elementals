@@ -15,11 +15,12 @@ pub struct MainState {
 }
 
 pub struct Input {
-    player_direction: Vector2<f32>,
+    player_direction: Vector,
 }
 
 pub struct Settings {
     world_size: Point,
+    fps: i32,
 }
 
 pub struct Player {
@@ -34,7 +35,7 @@ impl Enemy {
     fn default() -> Enemy {
         Enemy {
             radius: 0.5,
-            max_speed: 0.4,
+            max_speed: 4.,
         }
     }
 }
@@ -44,7 +45,7 @@ pub struct Position {
 }
 
 pub struct Velocity {
-    velocity: Vector2<f32>,
+    velocity: Vector,
 }
 
 impl MainState {
@@ -57,6 +58,7 @@ impl MainState {
             },
             settings: Settings {
                 world_size: Point::new(50., 20.),
+                fps: 50,
             },
             rnd: SmallRng::seed_from_u64(0),
         }
@@ -77,12 +79,18 @@ impl MainState {
     }
 
     pub fn step(self: &mut MainState) {
-        update_player_velocity(&mut self.world, &self.input.player_direction);
+        update_player_velocity(
+            &mut self.world,
+            &self.input.player_direction,
+            &self.settings,
+        );
         update_player_position(&mut self.world);
+
+        update_enemies_velocity(&mut self.world, &self.settings);
         update_enemies_position(&mut self.world);
     }
 
-    pub fn set_player_direction(self: &mut MainState, direction: &mut Vector2<f32>) {
+    pub fn set_player_direction(self: &mut MainState, direction: &mut Vector) {
         if direction.norm() > 1.0 {
             direction.try_normalize_mut(0.01);
         }
@@ -91,11 +99,11 @@ impl MainState {
     }
 }
 
-fn update_player_velocity(world: &mut World, player_direction: &Vector2<f32>) {
+fn update_player_velocity(world: &mut World, player_direction: &Vector, settings: &Settings) {
     world
         .matcher::<All<(Read<Player>, Write<Velocity>)>>()
         .for_each(|(player, v)| {
-            v.velocity = player_direction * player.max_speed / 50.;
+            v.velocity = player_direction * player.max_speed / settings.fps as f32;
         });
 }
 
@@ -119,11 +127,7 @@ fn update_enemies_position(world: &mut World) {
 
             let has_collision = enemies.iter().any(|e| {
                 std::ptr::eq(e, enemy) == false
-                    && has_circles_collision(
-                        &e.0.point,
-                        &enemy.0.point,
-                        e.2.radius + &enemy.2.radius,
-                    )
+                    && has_circles_collision(&e.0.point, &new_pos, e.2.radius + &enemy.2.radius)
             });
 
             match has_collision {
@@ -135,6 +139,24 @@ fn update_enemies_position(world: &mut World) {
         if let Some(pos) = maybe_pos {
             enemies[enemy_id].0.point = pos;
         }
+    }
+}
+
+fn update_enemies_velocity(world: &mut World, settings: &Settings) {
+    let player = world
+        .matcher::<All<(Read<Position>, Read<Player>)>>()
+        .next();
+
+    if let Some((p_pos, _)) = player {
+        world
+            .matcher::<All<(Read<Position>, Write<Velocity>, Read<Enemy>)>>()
+            .for_each(|(e_pos, e_vel, e)| {
+                let direction = (p_pos.point - e_pos.point).try_normalize(0.001);
+                e_vel.velocity = match direction {
+                    Some(d) => d * e.max_speed / settings.fps as f32,
+                    None => Vector::zeros(),
+                }
+            });
     }
 }
 

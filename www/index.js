@@ -107,11 +107,11 @@ document.addEventListener("keydown", event => {
 });
 
 document.addEventListener("keyup", event => {
-    if (event.code == "KeyA") player_speed.x = 0;
-    if (event.code == "KeyD") player_speed.x = 0;
+    if (event.code == "KeyA" && player_speed.x == -1) player_speed.x = 0;
+    if (event.code == "KeyD" && player_speed.x == +1) player_speed.x = 0;
 
-    if (event.code == "KeyS") player_speed.y = 0;
-    if (event.code == "KeyW") player_speed.y = 0;
+    if (event.code == "KeyS" && player_speed.y == +1) player_speed.y = 0;
+    if (event.code == "KeyW" && player_speed.y == -1) player_speed.y = 0;
 
     game.set_player_direction(player_speed.x, player_speed.y);
 });
