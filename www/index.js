@@ -1,10 +1,10 @@
 import * as wasm from "../pkg";
 import nipplejs from "nipplejs";
 
-const world = new wasm.World();
-
 const game = new wasm.Game();
 console.log(game.get_state());
+
+//const world = new wasm.World();
 
 const CELL_SIZE = 20; // px
 
@@ -28,7 +28,7 @@ if (isTouchDevice) {
 
     moveJoystick.on("end move", (event, data) => {
         if (event.type === "end") {
-            world.set_player_speed(0, 0);
+            //world.set_player_speed(0, 0);
             return;
         }
 
@@ -36,7 +36,7 @@ if (isTouchDevice) {
             let x = data.instance.frontPosition.x / 50;
             let y = data.instance.frontPosition.y / 50;
 
-            world.set_player_speed(x, y);
+            //world.set_player_speed(x, y);
         }
     });
 
@@ -50,10 +50,10 @@ if (isTouchDevice) {
     fireJoystick.on("start end move", (event, data) => {
         switch (event.type) {
             case "start":
-                world.set_firing(true);
+                //world.set_firing(true);
                 break;
             case "end":
-                world.set_firing(false);
+                //world.set_firing(false);
                 break;
             case "move":
                 if (data.direction) {
@@ -81,15 +81,15 @@ if (isTouchDevice) {
 // mouse
 
 canvas.addEventListener("mousemove", event => {
-    world.set_gan_target(event.offsetX / CELL_SIZE, event.offsetY / CELL_SIZE);
+    //world.set_gan_target(event.offsetX / CELL_SIZE, event.offsetY / CELL_SIZE);
 });
 
 document.addEventListener("mousedown", event => {
-    world.set_firing(true);
+    //world.set_firing(true);
 });
 
 document.addEventListener("mouseup", event => {
-    world.set_firing(false);
+    //world.set_firing(false);
 });
 
 // keyboard
@@ -103,7 +103,7 @@ document.addEventListener("keydown", event => {
     if (event.code == "KeyS") player_speed.y = +1;
     if (event.code == "KeyW") player_speed.y = -1;
 
-    world.set_player_speed(player_speed.x, player_speed.y);
+    game.set_player_direction(player_speed.x, player_speed.y);
 });
 
 document.addEventListener("keyup", event => {
@@ -113,47 +113,45 @@ document.addEventListener("keyup", event => {
     if (event.code == "KeyS") player_speed.y = 0;
     if (event.code == "KeyW") player_speed.y = 0;
 
-    world.set_player_speed(player_speed.x, player_speed.y);
+    game.set_player_direction(player_speed.x, player_speed.y);
 });
 
 const ctx = canvas.getContext("2d");
 
-function draw() {
+function draw(state) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.strokeRect(0, 0, canvas.width, canvas.height);
 
-    ctx.strokeStyle = "#444";
-    ctx.fillText(world.get_scope(), 950, 50);
+    // ctx.strokeStyle = "#444";
+    // ctx.fillText(world.get_scope(), 950, 50);
 
     ctx.strokeStyle = "#000";
 
-    for (let i = 0; i < world.enemies_count(); ++i) {
-        const enemy = world.enemy(i);
+    for (let i = 0; i < state.enemies.length; ++i) {
+        const enemy = state.enemies[i];
         ctx.beginPath();
-        ctx.arc(enemy.pos.x * CELL_SIZE, enemy.pos.y * CELL_SIZE, CELL_SIZE / 2, 0, 2 * Math.PI);
+        ctx.arc(enemy.x * CELL_SIZE, enemy.y * CELL_SIZE, CELL_SIZE * enemy.radius, 0, 2 * Math.PI);
         ctx.stroke();
-        enemy.free();
     }
 
-    const player = world.get_player_pos();
+    const player = state.player;
 
     ctx.beginPath();
     ctx.arc(player.x * CELL_SIZE, player.y * CELL_SIZE, CELL_SIZE / 4, 0, 2 * Math.PI);
     ctx.stroke();
 
-    player.free();
-
-    const latest_heat = world.latest_heat();
-    ctx.beginPath();
-    ctx.moveTo(latest_heat.x * CELL_SIZE - CELL_SIZE / 8, latest_heat.y * CELL_SIZE - CELL_SIZE / 8);
-    ctx.lineTo(latest_heat.x * CELL_SIZE + CELL_SIZE / 8, latest_heat.y * CELL_SIZE + CELL_SIZE / 8);
-    ctx.moveTo(latest_heat.x * CELL_SIZE - CELL_SIZE / 8, latest_heat.y * CELL_SIZE + CELL_SIZE / 8);
-    ctx.lineTo(latest_heat.x * CELL_SIZE + CELL_SIZE / 8, latest_heat.y * CELL_SIZE - CELL_SIZE / 8);
-    ctx.stroke();
-    latest_heat.free();
+    // const latest_heat = world.latest_heat();
+    // ctx.beginPath();
+    // ctx.moveTo(latest_heat.x * CELL_SIZE - CELL_SIZE / 8, latest_heat.y * CELL_SIZE - CELL_SIZE / 8);
+    // ctx.lineTo(latest_heat.x * CELL_SIZE + CELL_SIZE / 8, latest_heat.y * CELL_SIZE + CELL_SIZE / 8);
+    // ctx.moveTo(latest_heat.x * CELL_SIZE - CELL_SIZE / 8, latest_heat.y * CELL_SIZE + CELL_SIZE / 8);
+    // ctx.lineTo(latest_heat.x * CELL_SIZE + CELL_SIZE / 8, latest_heat.y * CELL_SIZE - CELL_SIZE / 8);
+    // ctx.stroke();
+    // latest_heat.free();
 }
 
 setInterval(() => {
-    draw();
-    world.step();
+    const state = JSON.parse(game.get_state());
+    draw(state);
+    game.step();
 }, 20);

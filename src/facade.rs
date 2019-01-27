@@ -24,6 +24,11 @@ impl Game {
     }
 
     #[wasm_bindgen]
+    pub fn set_player_direction(&mut self, x: f32, y: f32) {
+        self.state.set_player_direction(&mut na::Vector2::new(x, y));
+    }
+
+    #[wasm_bindgen]
     pub fn get_state(&mut self) -> String {
         let player_pos = self
             .state
@@ -34,11 +39,23 @@ impl Game {
             .0
             .point;
 
+        let enemies = self
+            .state
+            .world
+            .matcher::<All<(Read<ecs::Position>, Read<ecs::Enemy>)>>()
+            .map(|(pos, enemy)| Enemy {
+                x: pos.point.x,
+                y: pos.point.y,
+                radius: enemy.radius,
+            })
+            .collect::<Vec<_>>();
+
         let state = GameState {
             player: Player {
                 x: player_pos.x,
                 y: player_pos.y,
             },
+            enemies: enemies,
         };
 
         serde_json::to_string(&state).unwrap()
@@ -48,6 +65,7 @@ impl Game {
 #[derive(Serialize, Deserialize)]
 struct GameState {
     player: Player,
+    enemies: Vec<Enemy>,
 }
 
 #[derive(Serialize, Deserialize)]

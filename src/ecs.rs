@@ -1,21 +1,42 @@
 pub use na::geometry::*;
 use na::Vector2;
 use pyro::*;
+use rand::rngs::SmallRng;
+use rand::SeedableRng;
+
+type Point = Point2<f32>;
+type Vector = Vector2<f32>;
 
 pub struct MainState {
     pub world: World,
     input: Input,
+    settings: Settings,
+    rnd: SmallRng,
 }
 
 pub struct Input {
     player_direction: Vector2<f32>,
 }
 
+pub struct Settings {
+    world_size: Point,
+}
+
 pub struct Player {
     max_speed: f32,
 }
 pub struct Enemy {
-    radius: f32,
+    pub radius: f32,
+    max_speed: f32,
+}
+
+impl Enemy {
+    fn default() -> Enemy {
+        Enemy {
+            radius: 0.5,
+            max_speed: 0.4,
+        }
+    }
 }
 
 pub struct Position {
@@ -34,6 +55,10 @@ impl MainState {
             input: Input {
                 player_direction: Vector2::new(0., 0.),
             },
+            settings: Settings {
+                world_size: Point::new(50., 20.),
+            },
+            rnd: SmallRng::seed_from_u64(0),
         }
     }
 
@@ -47,6 +72,8 @@ impl MainState {
                 velocity: Vector2::new(0., 0.),
             },
         )));
+
+        (0..10).for_each(|_| create_enemy(&mut self.world, &self.settings, &mut self.rnd));
     }
 
     pub fn step(self: &mut MainState) {
@@ -68,7 +95,7 @@ fn update_player_velocity(world: &mut World, player_direction: &Vector2<f32>) {
     world
         .matcher::<All<(Read<Player>, Write<Velocity>)>>()
         .for_each(|(player, v)| {
-            v.velocity = player_direction * player.max_speed;
+            v.velocity = player_direction * player.max_speed / 50.;
         });
 }
 
@@ -116,6 +143,28 @@ fn has_circles_collision(a: &Point2<f32>, b: &Point2<f32>, minimum_distance: f32
     distance < minimum_distance * minimum_distance
 }
 
+fn create_enemy<R: rand::Rng>(world: &mut World, settings: &Settings, rnd: &mut R) {
+    let position = if rnd.gen() {
+        Point::new(
+            settings.world_size.x * (rnd.gen::<u32>() % 2) as f32,
+            settings.world_size.y * rnd.gen::<f32>(),
+        )
+    } else {
+        Point::new(
+            settings.world_size.x * rnd.gen::<f32>(),
+            settings.world_size.y * (rnd.gen::<u32>() % 2) as f32,
+        )
+    };
+
+    world.append_components(Some((
+        Enemy::default(),
+        Position { point: position },
+        Velocity {
+            velocity: Vector::zeros(),
+        },
+    )));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,7 +202,7 @@ mod tests {
     fn update_enemies_position_test() {
         let mut main_state = MainState::new();
         main_state.world.append_components(Some((
-            Enemy { radius: 0.5 },
+            Enemy::default(),
             Position {
                 point: Point2::new(0., 0.),
             },
@@ -176,7 +225,7 @@ mod tests {
     fn update_enemies_position_with_collision_enemies_test() {
         let mut main_state = MainState::new();
         main_state.world.append_components(Some((
-            Enemy { radius: 0.5 },
+            Enemy::default(),
             Position {
                 point: Point2::new(0., 0.),
             },
@@ -185,7 +234,7 @@ mod tests {
             },
         )));
         main_state.world.append_components(Some((
-            Enemy { radius: 0.5 },
+            Enemy::default(),
             Position {
                 point: Point2::new(0., 0.),
             },
