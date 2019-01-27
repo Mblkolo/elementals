@@ -1,4 +1,5 @@
 use ecs;
+use pyro::{All, Read};
 use serde_derive::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -24,8 +25,20 @@ impl Game {
 
     #[wasm_bindgen]
     pub fn get_state(&mut self) -> String {
+        let player_pos = self
+            .state
+            .world
+            .matcher::<All<(Read<ecs::Position>, Read<ecs::Player>)>>()
+            .next()
+            .unwrap()
+            .0
+            .point;
+
         let state = GameState {
-            player: Player { x: 10., y: 10. },
+            player: Player {
+                x: player_pos.x,
+                y: player_pos.y,
+            },
         };
 
         serde_json::to_string(&state).unwrap()

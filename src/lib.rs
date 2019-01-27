@@ -1,6 +1,7 @@
 ﻿extern crate cfg_if;
 extern crate nalgebra as na;
 extern crate pyro;
+extern crate rand;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate wasm_bindgen;
@@ -8,7 +9,6 @@ extern crate wasm_bindgen;
 pub mod ecs;
 pub mod facade;
 pub mod game;
-mod rand;
 mod utils;
 
 use cfg_if::cfg_if;

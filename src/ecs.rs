@@ -3,7 +3,7 @@ use na::Vector2;
 use pyro::*;
 
 pub struct MainState {
-    world: World,
+    pub world: World,
     input: Input,
 }
 
@@ -19,7 +19,7 @@ pub struct Enemy {
 }
 
 pub struct Position {
-    point: Point2<f32>,
+    pub point: Point2<f32>,
 }
 
 pub struct Velocity {
@@ -41,7 +41,7 @@ impl MainState {
         self.world.append_components(Some((
             Player { max_speed: 6. },
             Position {
-                point: Point2::new(10., 10.),
+                point: Point2::new(5., 10.),
             },
             Velocity {
                 velocity: Vector2::new(0., 0.),
