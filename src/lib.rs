@@ -1,8 +1,10 @@
 ﻿extern crate cfg_if;
 extern crate nalgebra as na;
+extern crate pyro;
 extern crate wasm_bindgen;
 
 pub mod game;
+pub mod ecs;
 mod rand;
 mod utils;
 

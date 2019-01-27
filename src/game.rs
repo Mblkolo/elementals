@@ -106,7 +106,9 @@ impl World {
     #[wasm_bindgen(constructor)]
     pub fn new() -> World {
         let mut rand = Rand::new(0);
-        let enemies = (0..10).map(|i| create_enemy(&mut rand)).collect::<Vec<_>>();
+        let enemies = (0..10)
+            .map(|_i| create_enemy(&mut rand))
+            .collect::<Vec<_>>();
 
         World {
             player: Player {
@@ -278,7 +280,8 @@ fn get_fired_enemy(
                 Some(point) => Some((e, point)),
                 _ => None,
             }
-        }).collect::<Vec<_>>();
+        })
+        .collect::<Vec<_>>();
 
     fired_enemies.sort_by(|a, b| {
         let da = a.1.sub(&player_pos);
