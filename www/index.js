@@ -81,15 +81,15 @@ if (isTouchDevice) {
 // mouse
 
 canvas.addEventListener("mousemove", event => {
-    //world.set_gan_target(event.offsetX / CELL_SIZE, event.offsetY / CELL_SIZE);
+    game.set_shoot_point(event.offsetX / CELL_SIZE, event.offsetY / CELL_SIZE);
 });
 
 document.addEventListener("mousedown", event => {
-    //world.set_firing(true);
+    game.set_shooting(true);
 });
 
 document.addEventListener("mouseup", event => {
-    //world.set_firing(false);
+    game.set_shooting(false);
 });
 
 // keyboard

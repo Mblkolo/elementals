@@ -1,4 +1,5 @@
-pub use na::geometry::*;
+use math;
+use na::geometry::*;
 use na::Vector2;
 use pyro::*;
 use rand::rngs::SmallRng;
@@ -16,11 +17,13 @@ pub struct MainState {
 
 pub struct Input {
     player_direction: Vector,
+    shoot_point: Option<Point>,
 }
 
 pub struct Settings {
     world_size: Point,
     fps: i32,
+    gun_reload_ticks: i32,
 }
 
 pub struct Player {
@@ -29,6 +32,15 @@ pub struct Player {
 pub struct Enemy {
     pub radius: f32,
     max_speed: f32,
+}
+
+pub struct Gun {
+    tick_to_reload: i32,
+}
+
+pub struct Shot {
+    from: Point,
+    to: Point,
 }
 
 impl Enemy {
@@ -54,11 +66,13 @@ impl MainState {
         MainState {
             world,
             input: Input {
-                player_direction: Vector2::new(0., 0.),
+                player_direction: Vector2::zeros(),
+                shoot_point: None,
             },
             settings: Settings {
                 world_size: Point::new(50., 20.),
                 fps: 50,
+                gun_reload_ticks: 20,
             },
             rnd: SmallRng::seed_from_u64(0),
         }
@@ -73,6 +87,7 @@ impl MainState {
             Velocity {
                 velocity: Vector2::new(0., 0.),
             },
+            Gun { tick_to_reload: 1 },
         )));
 
         (0..10).for_each(|_| create_enemy(&mut self.world, &self.settings, &mut self.rnd));
@@ -88,6 +103,10 @@ impl MainState {
 
         update_enemies_velocity(&mut self.world, &self.settings);
         update_enemies_position(&mut self.world);
+
+        shoot_from_gun(&mut self.world, &mut self.input, &self.settings);
+        process_shots(&mut self.world);
+        remove_shots(&mut self.world);
     }
 
     pub fn set_player_direction(self: &mut MainState, direction: &mut Vector) {
@@ -96,6 +115,10 @@ impl MainState {
         }
 
         self.input.player_direction = direction.clone();
+    }
+
+    pub fn set_shoot_point(self: &mut MainState, shoot_point: Option<Point>) {
+        self.input.shoot_point = shoot_point;
     }
 }
 
@@ -160,6 +183,89 @@ fn update_enemies_velocity(world: &mut World, settings: &Settings) {
     }
 }
 
+fn shoot_from_gun(world: &mut World, input: &Input, settings: &Settings) {
+    if let Some(shoot_point) = input.shoot_point {
+        let shots = world
+            .matcher::<All<(Write<Gun>, Read<Position>)>>()
+            .filter_map(|(gun, pos)| {
+                gun.tick_to_reload = match gun.tick_to_reload {
+                    x if x > 0 => x - 1,
+                    _ => settings.gun_reload_ticks,
+                };
+
+                match gun.tick_to_reload {
+                    0 => Some(Shot {
+                        from: pos.point,
+                        to: shoot_point,
+                    }),
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        for shot in shots {
+            world.append_components(Some((shot,)));
+        }
+    }
+}
+
+fn process_shots(world: &mut World) {
+    let remove_us = {
+        let enemies = world
+            .matcher_with_entities::<All<(Read<Enemy>, Read<Position>)>>()
+            .collect::<Vec<_>>();
+
+        let shots = world
+            .matcher_with_entities::<All<(Read<Shot>,)>>()
+            .collect::<Vec<_>>();
+
+        let mut remove_us = Vec::new();
+        for (_, (shot,)) in shots {
+            //TODO убивать только ближайшего, а не всех
+            for (enemy_entity, (enemy, enemy_pos)) in &enemies {
+                let hit = get_enemy_hit_point(&shot, &enemy, &enemy_pos.point);
+                if hit.is_some() {
+                    remove_us.push(*enemy_entity);
+                }
+            }
+        }
+
+        remove_us
+    };
+
+    world.remove_entities(remove_us);
+}
+
+fn remove_shots(world: &mut World) {
+    let entities = {
+        let shots = world
+            .matcher_with_entities::<All<(Read<Shot>,)>>()
+            .collect::<Vec<_>>();
+
+        shots.iter().map(|(e, _)| *e).collect::<Vec<_>>()
+    };
+
+    world.remove_entities(entities);
+}
+
+fn get_enemy_hit_point(shot: &Shot, enemy: &Enemy, enemy_pos: &Point) -> Option<Point> {
+    let mut cross_points =
+        math::get_cross_points_with_sphere(&enemy_pos, enemy.radius, &shot.from, &shot.to);
+
+    //из всех точек выбираем самую ближайшую
+    cross_points.sort_by(|a, b| {
+        let a_len = (a - shot.from).norm_squared();
+        let b_len = (b - shot.from).norm_squared();
+
+        a_len.partial_cmp(&b_len).unwrap()
+    });
+
+    match cross_points.len() {
+        0 => None,
+        _ => Some(cross_points[0]),
+    }
+}
+
 fn has_circles_collision(a: &Point2<f32>, b: &Point2<f32>, minimum_distance: f32) -> bool {
     let distance = na::distance_squared(a, b);
     distance < minimum_distance * minimum_distance
@@ -197,7 +303,7 @@ mod tests {
         main_state.world.append_components(Some((
             Player { max_speed: 10. },
             Position {
-                point: Point2::new(0., 0.),
+                point: Point2::origin(),
             },
             Velocity {
                 velocity: Vector2::new(1., 2.),

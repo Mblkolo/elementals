@@ -9,6 +9,7 @@ extern crate wasm_bindgen;
 pub mod ecs;
 pub mod facade;
 pub mod game;
+pub mod math;
 mod utils;
 
 use cfg_if::cfg_if;
