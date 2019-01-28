@@ -17,6 +17,7 @@ function debug(info) {
 var isTouchDevice = "ontouchstart" in document.documentElement;
 if (isTouchDevice) {
     // screen joysticks
+    document.getElementById("left-joystick-zone").style.display = "block";
 
     const moveJoystick = nipplejs.create({
         zone: document.getElementById("left-joystick-zone"),
@@ -36,6 +37,8 @@ if (isTouchDevice) {
             world.set_player_speed(x, y);
         }
     });
+
+    document.getElementById("right-joystick-zone").style.display = "block";
 
     const fireJoystick = nipplejs.create({
         zone: document.getElementById("right-joystick-zone"),
