@@ -1,4 +1,4 @@
-use math;
+use crate::math;
 use na::geometry::*;
 use na::Vector2;
 use pyro::*;
@@ -210,28 +210,24 @@ fn shoot_from_gun(world: &mut World, input: &Input, settings: &Settings) {
 }
 
 fn process_shots(world: &mut World) {
-    let remove_us = {
-        let enemies = world
-            .matcher_with_entities::<All<(Read<Enemy>, Read<Position>)>>()
-            .collect::<Vec<_>>();
+    let enemies = world
+        .matcher_with_entities::<All<(Read<Enemy>, Read<Position>)>>()
+        .collect::<Vec<_>>();
 
-        let shots = world
-            .matcher_with_entities::<All<(Read<Shot>,)>>()
-            .collect::<Vec<_>>();
+    let shots = world
+        .matcher_with_entities::<All<(Read<Shot>,)>>()
+        .collect::<Vec<_>>();
 
-        let mut remove_us = Vec::new();
-        for (_, (shot,)) in shots {
-            //TODO убивать только ближайшего, а не всех
-            for (enemy_entity, (enemy, enemy_pos)) in &enemies {
-                let hit = get_enemy_hit_point(&shot, &enemy, &enemy_pos.point);
-                if hit.is_some() {
-                    remove_us.push(*enemy_entity);
-                }
+    let mut remove_us = Vec::new();
+    for (_, (shot,)) in shots {
+        //TODO убивать только ближайшего, а не всех
+        for (enemy_entity, (enemy, enemy_pos)) in &enemies {
+            let hit = get_enemy_hit_point(&shot, &enemy, &enemy_pos.point);
+            if hit.is_some() {
+                remove_us.push(*enemy_entity);
             }
         }
-
-        remove_us
-    };
+    }
 
     world.remove_entities(remove_us);
 }

@@ -1,4 +1,4 @@
-use ecs;
+use crate::ecs;
 use na::geometry::Point2;
 use pyro::{All, Read};
 use serde_derive::{Deserialize, Serialize};

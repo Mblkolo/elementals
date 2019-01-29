@@ -2,6 +2,7 @@
 name = "elementals"
 version = "0.1.0"
 authors = ["Mblkolo <rusakov-rv@yandex.ru>"]
+edition = "2018"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
