@@ -62,6 +62,25 @@ impl Game {
     }
 
     #[wasm_bindgen]
+    pub fn get_player_pos(&mut self) -> String {
+        let player_pos = self
+            .state
+            .world
+            .matcher::<All<(Read<ecs::Position>, Read<ecs::Player>)>>()
+            .next()
+            .unwrap()
+            .0
+            .point;
+
+        let player = Player {
+            x: player_pos.x,
+            y: player_pos.y,
+        };
+
+        serde_json::to_string(&player).unwrap()
+    }
+
+    #[wasm_bindgen]
     pub fn get_state(&mut self) -> String {
         let player_pos = self
             .state

@@ -4,8 +4,6 @@ import nipplejs from "nipplejs";
 const game = new wasm.Game();
 console.log(game.get_state());
 
-//const world = new wasm.World();
-
 const CELL_SIZE = 20; // px
 
 const canvas = document.getElementById("game-canvas");
@@ -28,7 +26,7 @@ if (isTouchDevice) {
 
     moveJoystick.on("end move", (event, data) => {
         if (event.type === "end") {
-            //world.set_player_speed(0, 0);
+            game.set_player_direction(0, 0);
             return;
         }
 
@@ -36,7 +34,7 @@ if (isTouchDevice) {
             let x = data.instance.frontPosition.x / 50;
             let y = data.instance.frontPosition.y / 50;
 
-            //world.set_player_speed(x, y);
+            game.set_player_direction(x, y);
         }
     });
 
@@ -50,25 +48,24 @@ if (isTouchDevice) {
     fireJoystick.on("start end move", (event, data) => {
         switch (event.type) {
             case "start":
-                //world.set_firing(true);
+                game.set_shooting(true);
                 break;
             case "end":
-                //world.set_firing(false);
+                game.set_shooting(false);
                 break;
             case "move":
                 if (data.direction) {
                     const frontPosition = data.instance.frontPosition;
 
-                    const player = world.get_player_pos();
+                    const player = JSON.parse(game.get_player_pos());
 
                     const aimPosX = player.x * CELL_SIZE + frontPosition.x;
                     const aimPosY = player.y * CELL_SIZE + frontPosition.y;
 
                     aimEl.style.left = `${aimPosX}px`;
                     aimEl.style.top = `${aimPosY}px`;
-                    player.free();
 
-                    world.set_gan_target(aimPosX / CELL_SIZE, aimPosY / CELL_SIZE);
+                    game.set_shoot_point(aimPosX / CELL_SIZE, aimPosY / CELL_SIZE);
                 }
                 break;
 
@@ -86,6 +83,7 @@ canvas.addEventListener("mousemove", event => {
 
 let shoot_force = 1;
 document.addEventListener("mousedown", event => {
+    game.set_shoot_force(shoot_force);
     game.set_shooting(true);
 });
 
