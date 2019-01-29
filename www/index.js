@@ -84,12 +84,14 @@ canvas.addEventListener("mousemove", event => {
     game.set_shoot_point(event.offsetX / CELL_SIZE, event.offsetY / CELL_SIZE);
 });
 
+let shoot_force = 1;
 document.addEventListener("mousedown", event => {
     game.set_shooting(true);
 });
 
 document.addEventListener("mouseup", event => {
     game.set_shooting(false);
+    game.set_shoot_force((shoot_force *= -1));
 });
 
 // keyboard
@@ -129,8 +131,15 @@ function draw(state) {
 
     for (let i = 0; i < state.enemies.length; ++i) {
         const enemy = state.enemies[i];
+
+        let color = Math.round((255 * enemy.current_color) / enemy.max_color);
+        if (color < 0) color = 0;
+        if (color > 255) color = 255;
+
+        ctx.fillStyle = "rgb(" + color + "," + color + "," + color + ")";
         ctx.beginPath();
         ctx.arc(enemy.x * CELL_SIZE, enemy.y * CELL_SIZE, CELL_SIZE * enemy.radius, 0, 2 * Math.PI);
+        ctx.fill();
         ctx.stroke();
     }
 
@@ -144,22 +153,16 @@ function draw(state) {
     }
 
     ctx.strokeStyle = "#000";
-    ctx.fillStyle = "#fff";
+
+    if (shoot_force > 0) ctx.fillStyle = "#fff";
+    else ctx.fillStyle = "#000";
+
     const player = state.player;
 
     ctx.beginPath();
     ctx.arc(player.x * CELL_SIZE, player.y * CELL_SIZE, CELL_SIZE / 4, 0, 2 * Math.PI);
     ctx.fill();
     ctx.stroke();
-
-    // const latest_heat = world.latest_heat();
-    // ctx.beginPath();
-    // ctx.moveTo(latest_heat.x * CELL_SIZE - CELL_SIZE / 8, latest_heat.y * CELL_SIZE - CELL_SIZE / 8);
-    // ctx.lineTo(latest_heat.x * CELL_SIZE + CELL_SIZE / 8, latest_heat.y * CELL_SIZE + CELL_SIZE / 8);
-    // ctx.moveTo(latest_heat.x * CELL_SIZE - CELL_SIZE / 8, latest_heat.y * CELL_SIZE + CELL_SIZE / 8);
-    // ctx.lineTo(latest_heat.x * CELL_SIZE + CELL_SIZE / 8, latest_heat.y * CELL_SIZE - CELL_SIZE / 8);
-    // ctx.stroke();
-    // latest_heat.free();
 }
 
 setInterval(() => {

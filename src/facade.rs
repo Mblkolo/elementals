@@ -57,6 +57,11 @@ impl Game {
     }
 
     #[wasm_bindgen]
+    pub fn set_shoot_force(&mut self, force: i32) {
+        self.state.set_shoot_force(force);
+    }
+
+    #[wasm_bindgen]
     pub fn get_state(&mut self) -> String {
         let player_pos = self
             .state
@@ -70,18 +75,20 @@ impl Game {
         let enemies = self
             .state
             .world
-            .matcher::<All<(Read<ecs::Position>, Read<ecs::Enemy>)>>()
-            .map(|(pos, enemy)| Enemy {
+            .matcher::<All<(Read<ecs::Position>, Read<ecs::Enemy>, Read<ecs::Color>)>>()
+            .map(|(pos, enemy, color)| Enemy {
                 x: pos.point.x,
                 y: pos.point.y,
                 radius: enemy.radius,
+                current_color: color.current,
+                max_color: color.max,
             })
             .collect::<Vec<_>>();
 
         let shots = self
             .state
             .world
-            .matcher::<All<(Read<ecs::ShotDecal>,)>>()
+            .matcher::<All<(Read<ecs::ShotTrace>,)>>()
             .map(|(decal,)| Shot {
                 from_x: decal.from.x,
                 from_y: decal.from.y,
@@ -121,6 +128,8 @@ struct Enemy {
     x: f32,
     y: f32,
     radius: f32,
+    current_color: i32,
+    max_color: i32,
 }
 
 #[derive(Serialize, Deserialize)]

@@ -1,4 +1,5 @@
 use crate::math;
+use core::cmp::Ordering;
 use na::geometry::*;
 use na::Vector2;
 use pyro::*;
@@ -18,6 +19,7 @@ pub struct MainState {
 pub struct Input {
     player_direction: Vector,
     shoot_point: Option<Point>,
+    shoot_force: i32,
 }
 
 pub struct Settings {
@@ -41,15 +43,21 @@ pub struct Gun {
 pub struct Shot {
     from: Point,
     to: Point,
+    force: i32,
 }
 
 pub struct DeadByTtl {
     ttl: i32,
 }
 
-pub struct ShotDecal {
+pub struct ShotTrace {
     pub from: Point,
     pub to: Point,
+}
+
+pub struct Color {
+    pub max: i32,
+    pub current: i32,
 }
 
 impl Enemy {
@@ -77,6 +85,7 @@ impl MainState {
             input: Input {
                 player_direction: Vector2::zeros(),
                 shoot_point: None,
+                shoot_force: 0,
             },
             settings: Settings {
                 world_size: Point::new(50., 20.),
@@ -118,6 +127,7 @@ impl MainState {
 
         shoot_from_gun(&mut self.world, &mut self.input, &self.settings);
         process_shots(&mut self.world);
+        remove_overcolored_enemies(&mut self.world);
     }
 
     pub fn set_player_direction(self: &mut MainState, direction: &mut Vector) {
@@ -130,6 +140,10 @@ impl MainState {
 
     pub fn set_shoot_point(self: &mut MainState, shoot_point: Option<Point>) {
         self.input.shoot_point = shoot_point;
+    }
+
+    pub fn set_shoot_force(self: &mut MainState, force: i32) {
+        self.input.shoot_force = force;
     }
 }
 
@@ -224,6 +238,7 @@ fn shoot_from_gun(world: &mut World, input: &Input, settings: &Settings) {
                     0 => Some(Shot {
                         from: pos.point,
                         to: shoot_point,
+                        force: input.shoot_force,
                     }),
                     _ => None,
                 }
@@ -237,36 +252,53 @@ fn shoot_from_gun(world: &mut World, input: &Input, settings: &Settings) {
 }
 
 fn process_shots(world: &mut World) {
-    let enemies = world
-        .matcher_with_entities::<All<(Read<Enemy>, Read<Position>)>>()
-        .collect::<Vec<_>>();
+    let shots = world.matcher::<All<(Read<Shot>,)>>().collect::<Vec<_>>();
 
-    let shots = world
-        .matcher_with_entities::<All<(Read<Shot>,)>>()
-        .collect::<Vec<_>>();
-
-    let mut remove_us = Vec::new();
     let mut shot_decals = Vec::new();
-    for (_, (shot,)) in shots {
-        //TODO убивать только ближайшего, а не всех
-        for (enemy_entity, (enemy, enemy_pos)) in &enemies {
+    for (shot,) in shots {
+        let enemies = world
+            .matcher::<All<(Read<Enemy>, Read<Position>, Write<Color>)>>()
+            .collect::<Vec<_>>();
+
+        let mut enemies_hits = vec![];
+        for (enemy, enemy_pos, color) in enemies {
             let hit = get_enemy_hit_point(&shot, &enemy, &enemy_pos.point);
-            if hit.is_some() {
-                remove_us.push(*enemy_entity);
+            if let Some(hit_pos) = hit {
+                enemies_hits.push((color, hit_pos));
             }
         }
 
+        enemies_hits
+            .sort_by(|(_, a), (_, b)| compare_vector_lengths(&(a - shot.from), &(b - shot.from)));
+
+        let enemy_hit = enemies_hits.first_mut();
+        if let Some((color, _)) = enemy_hit {
+            color.current += shot.force;
+        }
+
         shot_decals.push((
-            ShotDecal {
+            ShotTrace {
                 from: shot.from.clone(),
-                to: shot.to.clone(),
+                to: match enemy_hit {
+                    Some((_, hit)) => *hit,
+                    _ => shot.to.clone(),
+                },
             },
-            DeadByTtl { ttl: 10 },
+            DeadByTtl { ttl: 5 },
         ))
     }
 
     world.append_components(shot_decals);
-    world.remove_entities(remove_us);
+}
+
+fn remove_overcolored_enemies(world: &mut World) {
+    let enemies = world
+        .matcher_with_entities::<All<(Read<Enemy>, Read<Color>)>>()
+        .filter(|(_, (_, color))| color.current < 0 || color.current > color.max)
+        .map(|(entity, _)| entity)
+        .collect::<Vec<_>>();
+
+    world.remove_entities(enemies);
 }
 
 fn get_enemy_hit_point(shot: &Shot, enemy: &Enemy, enemy_pos: &Point) -> Option<Point> {
@@ -274,17 +306,19 @@ fn get_enemy_hit_point(shot: &Shot, enemy: &Enemy, enemy_pos: &Point) -> Option<
         math::get_cross_points_with_sphere(&enemy_pos, enemy.radius, &shot.from, &shot.to);
 
     //из всех точек выбираем самую ближайшую
-    cross_points.sort_by(|a, b| {
-        let a_len = (a - shot.from).norm_squared();
-        let b_len = (b - shot.from).norm_squared();
-
-        a_len.partial_cmp(&b_len).unwrap()
-    });
+    cross_points.sort_by(|a, b| compare_vector_lengths(&(a - shot.from), &(b - shot.from)));
 
     match cross_points.len() {
         0 => None,
         _ => Some(cross_points[0]),
     }
+}
+
+fn compare_vector_lengths(a: &Vector, &b: &Vector) -> Ordering {
+    let a_len = a.norm_squared();
+    let b_len = b.norm_squared();
+
+    a_len.partial_cmp(&b_len).unwrap()
 }
 
 fn has_circles_collision(a: &Point2<f32>, b: &Point2<f32>, minimum_distance: f32) -> bool {
@@ -310,6 +344,10 @@ fn create_enemy<R: rand::Rng>(world: &mut World, settings: &Settings, rnd: &mut 
         Position { point: position },
         Velocity {
             velocity: Vector::zeros(),
+        },
+        Color {
+            current: rnd.gen::<i32>() % 10,
+            max: 9,
         },
     )));
 }
