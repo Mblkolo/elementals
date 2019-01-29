@@ -26,6 +26,7 @@ pub struct Settings {
     world_size: Point,
     fps: i32,
     gun_reload_ticks: i32,
+    tick_to_spawn: i32,
 }
 
 pub struct Player {
@@ -60,6 +61,10 @@ pub struct Color {
     pub current: i32,
 }
 
+pub struct Spawner {
+    pub tick_to_spawn: i32,
+}
+
 impl Enemy {
     fn default() -> Enemy {
         Enemy {
@@ -88,9 +93,10 @@ impl MainState {
                 shoot_force: 0,
             },
             settings: Settings {
-                world_size: Point::new(50., 20.),
+                world_size: Point::new(50., 40.),
                 fps: 50,
                 gun_reload_ticks: 5,
+                tick_to_spawn: 20,
             },
             rnd: SmallRng::seed_from_u64(0),
         }
@@ -107,6 +113,9 @@ impl MainState {
             },
             Gun { tick_to_reload: 1 },
         )));
+
+        self.world
+            .append_components(Some((Spawner { tick_to_spawn: 0 },)));
 
         (0..10).for_each(|_| create_enemy(&mut self.world, &self.settings, &mut self.rnd));
     }
@@ -128,6 +137,8 @@ impl MainState {
         shoot_from_gun(&mut self.world, &mut self.input, &self.settings);
         process_shots(&mut self.world);
         remove_overcolored_enemies(&mut self.world);
+
+        spawn_enemies(&mut self.world, &self.settings, &mut self.rnd);
     }
 
     pub fn set_player_direction(self: &mut MainState, direction: &mut Vector) {
@@ -144,6 +155,25 @@ impl MainState {
 
     pub fn set_shoot_force(self: &mut MainState, force: i32) {
         self.input.shoot_force = force;
+    }
+}
+
+fn spawn_enemies(world: &mut World, settings: &Settings, rnd: &mut SmallRng) {
+    let mut count = 0;
+
+    world
+        .matcher::<All<(Write<Spawner>,)>>()
+        .for_each(|(spawner,)| {
+            if spawner.tick_to_spawn <= 0 {
+                count += 1;
+                spawner.tick_to_spawn = settings.tick_to_spawn
+            } else {
+                spawner.tick_to_spawn -= 1
+            }
+        });
+
+    for _ in 0..count {
+        create_enemy(world, settings, rnd);
     }
 }
 
@@ -346,8 +376,8 @@ fn create_enemy<R: rand::Rng>(world: &mut World, settings: &Settings, rnd: &mut 
             velocity: Vector::zeros(),
         },
         Color {
-            current: rnd.gen::<i32>() % 10,
-            max: 9,
+            current: (rnd.gen::<u32>() % 6) as i32,
+            max: 5,
         },
     )));
 }
