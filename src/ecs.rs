@@ -43,6 +43,15 @@ pub struct Shot {
     to: Point,
 }
 
+pub struct DeadByTtl {
+    ttl: i32,
+}
+
+pub struct ShotDecal {
+    pub from: Point,
+    pub to: Point,
+}
+
 impl Enemy {
     fn default() -> Enemy {
         Enemy {
@@ -72,7 +81,7 @@ impl MainState {
             settings: Settings {
                 world_size: Point::new(50., 20.),
                 fps: 50,
-                gun_reload_ticks: 20,
+                gun_reload_ticks: 5,
             },
             rnd: SmallRng::seed_from_u64(0),
         }
@@ -94,6 +103,9 @@ impl MainState {
     }
 
     pub fn step(self: &mut MainState) {
+        update_ttl(&mut self.world);
+        remove_by_ttl(&mut self.world);
+
         update_player_velocity(
             &mut self.world,
             &self.input.player_direction,
@@ -106,7 +118,6 @@ impl MainState {
 
         shoot_from_gun(&mut self.world, &mut self.input, &self.settings);
         process_shots(&mut self.world);
-        remove_shots(&mut self.world);
     }
 
     pub fn set_player_direction(self: &mut MainState, direction: &mut Vector) {
@@ -120,6 +131,22 @@ impl MainState {
     pub fn set_shoot_point(self: &mut MainState, shoot_point: Option<Point>) {
         self.input.shoot_point = shoot_point;
     }
+}
+
+fn update_ttl(world: &mut World) {
+    world
+        .matcher::<All<(Write<DeadByTtl>,)>>()
+        .for_each(|(d,)| d.ttl -= 1);
+}
+
+fn remove_by_ttl(world: &mut World) {
+    let entities = world
+        .matcher_with_entities::<All<(Read<DeadByTtl>,)>>()
+        .filter(|(_, (d,))| d.ttl <= 0)
+        .map(|(e, _)| e)
+        .collect::<Vec<_>>();
+
+    world.remove_entities(entities);
 }
 
 fn update_player_velocity(world: &mut World, player_direction: &Vector, settings: &Settings) {
@@ -204,7 +231,7 @@ fn shoot_from_gun(world: &mut World, input: &Input, settings: &Settings) {
             .collect::<Vec<_>>();
 
         for shot in shots {
-            world.append_components(Some((shot,)));
+            world.append_components(Some((shot, DeadByTtl { ttl: 0 })));
         }
     }
 }
@@ -219,6 +246,7 @@ fn process_shots(world: &mut World) {
         .collect::<Vec<_>>();
 
     let mut remove_us = Vec::new();
+    let mut shot_decals = Vec::new();
     for (_, (shot,)) in shots {
         //TODO убивать только ближайшего, а не всех
         for (enemy_entity, (enemy, enemy_pos)) in &enemies {
@@ -227,21 +255,18 @@ fn process_shots(world: &mut World) {
                 remove_us.push(*enemy_entity);
             }
         }
+
+        shot_decals.push((
+            ShotDecal {
+                from: shot.from.clone(),
+                to: shot.to.clone(),
+            },
+            DeadByTtl { ttl: 10 },
+        ))
     }
 
+    world.append_components(shot_decals);
     world.remove_entities(remove_us);
-}
-
-fn remove_shots(world: &mut World) {
-    let entities = {
-        let shots = world
-            .matcher_with_entities::<All<(Read<Shot>,)>>()
-            .collect::<Vec<_>>();
-
-        shots.iter().map(|(e, _)| *e).collect::<Vec<_>>()
-    };
-
-    world.remove_entities(entities);
 }
 
 fn get_enemy_hit_point(shot: &Shot, enemy: &Enemy, enemy_pos: &Point) -> Option<Point> {

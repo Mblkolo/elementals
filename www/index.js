@@ -134,10 +134,22 @@ function draw(state) {
         ctx.stroke();
     }
 
+    ctx.strokeStyle = "#ddd";
+    for (let i = 0; i < state.shots.length; ++i) {
+        const shot = state.shots[i];
+        ctx.beginPath();
+        ctx.moveTo(shot.from_x * CELL_SIZE, shot.from_y * CELL_SIZE);
+        ctx.lineTo(shot.to_x * CELL_SIZE, shot.to_y * CELL_SIZE);
+        ctx.stroke();
+    }
+
+    ctx.strokeStyle = "#000";
+    ctx.fillStyle = "#fff";
     const player = state.player;
 
     ctx.beginPath();
     ctx.arc(player.x * CELL_SIZE, player.y * CELL_SIZE, CELL_SIZE / 4, 0, 2 * Math.PI);
+    ctx.fill();
     ctx.stroke();
 
     // const latest_heat = world.latest_heat();
@@ -152,6 +164,7 @@ function draw(state) {
 
 setInterval(() => {
     const state = JSON.parse(game.get_state());
+    //console.log(state);
     draw(state);
     game.step();
 }, 20);

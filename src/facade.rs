@@ -78,12 +78,25 @@ impl Game {
             })
             .collect::<Vec<_>>();
 
+        let shots = self
+            .state
+            .world
+            .matcher::<All<(Read<ecs::ShotDecal>,)>>()
+            .map(|(decal,)| Shot {
+                from_x: decal.from.x,
+                from_y: decal.from.y,
+                to_x: decal.to.x,
+                to_y: decal.to.y,
+            })
+            .collect::<Vec<_>>();
+
         let state = GameState {
             player: Player {
                 x: player_pos.x,
                 y: player_pos.y,
             },
             enemies: enemies,
+            shots: shots,
         };
 
         serde_json::to_string(&state).unwrap()
@@ -94,6 +107,7 @@ impl Game {
 struct GameState {
     player: Player,
     enemies: Vec<Enemy>,
+    shots: Vec<Shot>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -107,4 +121,12 @@ struct Enemy {
     x: f32,
     y: f32,
     radius: f32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Shot {
+    from_x: f32,
+    from_y: f32,
+    to_x: f32,
+    to_y: f32,
 }
