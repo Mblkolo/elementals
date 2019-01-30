@@ -132,8 +132,9 @@ function draw(state) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.strokeRect(0, 0, 50 * CELL_SIZE, 40 * CELL_SIZE);
 
-    // ctx.strokeStyle = "#444";
-    // ctx.fillText(world.get_scope(), 950, 50);
+    ctx.fillStyle = "#000";
+    console.log(state.scope);
+    ctx.fillText(state.scope.toString(), 50, 50);
 
     ctx.strokeStyle = "#000";
 

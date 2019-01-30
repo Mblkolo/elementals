@@ -66,6 +66,12 @@ pub struct Spawner {
     pub tick_to_spawn: i32,
 }
 
+pub struct EnemyKillEvent {}
+
+pub struct Scope {
+    pub scope: u32,
+}
+
 impl Enemy {
     fn default() -> Enemy {
         Enemy {
@@ -119,7 +125,7 @@ impl MainState {
         )));
 
         self.world
-            .append_components(Some((Spawner { tick_to_spawn: 0 },)));
+            .append_components(Some((Spawner { tick_to_spawn: 0 }, Scope { scope: 0 })));
 
         (0..10).for_each(|_| create_enemy(&mut self.world, &self.settings, &mut self.rnd));
     }
@@ -144,6 +150,8 @@ impl MainState {
         remove_overcolored_enemies(&mut self.world);
 
         spawn_enemies(&mut self.world, &self.settings, &mut self.rnd);
+
+        update_scope(&mut self.world);
     }
 
     pub fn set_player_direction(self: &mut MainState, direction: &mut Vector) {
@@ -160,6 +168,21 @@ impl MainState {
 
     pub fn set_shoot_force(self: &mut MainState, force: i32) {
         self.input.shoot_force = force;
+    }
+}
+
+fn update_scope(world: &mut World) {
+    let scope = world.matcher::<All<(Write<Scope>,)>>().next();
+
+    if let Some((s,)) = scope {
+        let kills = world
+            .matcher_with_entities::<All<(Read<EnemyKillEvent>,)>>()
+            .map(|(e, _)| e)
+            .collect::<Vec<_>>();
+
+        s.scope += kills.len() as u32;
+
+        world.remove_entities(kills);
     }
 }
 
@@ -353,6 +376,10 @@ fn remove_overcolored_enemies(world: &mut World) {
         })
         .map(|(entity, _)| entity)
         .collect::<Vec<_>>();
+
+    for _ in 0..enemies.len() {
+        world.append_components(Some((EnemyKillEvent {},)));
+    }
 
     world.remove_entities(enemies);
 }

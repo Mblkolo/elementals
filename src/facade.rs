@@ -90,6 +90,12 @@ impl Game {
             .matcher::<All<(Read<ecs::Position>, Read<ecs::Player>)>>()
             .next();
 
+        let scope = self
+            .state
+            .world
+            .matcher::<All<(Read<ecs::Scope>,)>>()
+            .next();
+
         let enemies = self
             .state
             .world
@@ -123,6 +129,10 @@ impl Game {
                 }),
                 _ => None,
             },
+            scope: match scope {
+                Some((s,)) => s.scope,
+                _ => 0,
+            },
             enemies: enemies,
             shots: shots,
         };
@@ -136,6 +146,7 @@ struct GameState {
     player: Option<Player>,
     enemies: Vec<Enemy>,
     shots: Vec<Shot>,
+    scope: u32,
 }
 
 #[derive(Serialize, Deserialize)]
