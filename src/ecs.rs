@@ -57,8 +57,8 @@ pub struct ShotTrace {
 }
 
 pub struct Color {
-    pub max: i32,
-    pub current: i32,
+    pub is_white: bool,
+    pub damage: i32,
 }
 
 pub struct Spawner {
@@ -303,7 +303,7 @@ fn process_shots(world: &mut World) {
 
         let enemy_hit = enemies_hits.first_mut();
         if let Some((color, _)) = enemy_hit {
-            color.current += shot.force;
+            color.damage = shot.force;
         }
 
         shot_decals.push((
@@ -324,7 +324,9 @@ fn process_shots(world: &mut World) {
 fn remove_overcolored_enemies(world: &mut World) {
     let enemies = world
         .matcher_with_entities::<All<(Read<Enemy>, Read<Color>)>>()
-        .filter(|(_, (_, color))| color.current < 0 || color.current > color.max)
+        .filter(|(_, (_, color))| {
+            color.is_white && color.damage > 0 || color.is_white == false && color.damage < 0
+        })
         .map(|(entity, _)| entity)
         .collect::<Vec<_>>();
 
@@ -376,8 +378,8 @@ fn create_enemy<R: rand::Rng>(world: &mut World, settings: &Settings, rnd: &mut 
             velocity: Vector::zeros(),
         },
         Color {
-            current: (rnd.gen::<u32>() % 6) as i32,
-            max: 5,
+            is_white: rnd.gen::<u32>() % 2 == 0,
+            damage: 0,
         },
     )));
 }

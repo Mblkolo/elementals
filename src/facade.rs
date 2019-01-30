@@ -99,8 +99,7 @@ impl Game {
                 x: pos.point.x,
                 y: pos.point.y,
                 radius: enemy.radius,
-                current_color: color.current,
-                max_color: color.max,
+                is_white: color.is_white,
             })
             .collect::<Vec<_>>();
 
@@ -147,8 +146,7 @@ struct Enemy {
     x: f32,
     y: f32,
     radius: f32,
-    current_color: i32,
-    max_color: i32,
+    is_white: bool,
 }
 
 #[derive(Serialize, Deserialize)]

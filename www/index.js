@@ -130,18 +130,18 @@ function draw(state) {
     for (let i = 0; i < state.enemies.length; ++i) {
         const enemy = state.enemies[i];
 
-        let color = Math.round((255 * enemy.current_color) / enemy.max_color);
-        if (color < 0) color = 0;
-        if (color > 255) color = 255;
+        ctx.fillStyle = "#000";
+        if (enemy.is_white) {
+            ctx.fillStyle = "#fff";
+        }
 
-        ctx.fillStyle = "rgb(" + color + "," + color + "," + color + ")";
         ctx.beginPath();
         ctx.arc(enemy.x * CELL_SIZE, enemy.y * CELL_SIZE, CELL_SIZE * enemy.radius, 0, 2 * Math.PI);
         ctx.fill();
         ctx.stroke();
     }
 
-    ctx.strokeStyle = "#ddd";
+    ctx.strokeStyle = "#aaa";
     for (let i = 0; i < state.shots.length; ++i) {
         const shot = state.shots[i];
         ctx.beginPath();
