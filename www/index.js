@@ -176,7 +176,10 @@ function draw(state) {
 
 setInterval(() => {
     const state = JSON.parse(game.get_state());
-    //console.log(state);
+    if (state.player == null) {
+        return;
+    }
+
     draw(state);
     game.step();
 }, 20);
