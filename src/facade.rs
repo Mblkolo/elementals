@@ -63,33 +63,32 @@ impl Game {
 
     #[wasm_bindgen]
     pub fn get_player_pos(&mut self) -> String {
-        let player_pos = self
+        let player_entity = self
             .state
             .world
             .matcher::<All<(Read<ecs::Position>, Read<ecs::Player>)>>()
-            .next()
-            .unwrap()
-            .0
-            .point;
+            .next();
 
-        let player = Player {
-            x: player_pos.x,
-            y: player_pos.y,
-        };
-
-        serde_json::to_string(&player).unwrap()
+        match player_entity {
+            Some((pos, p)) => {
+                let player = Some(Player {
+                    x: pos.point.x,
+                    y: pos.point.y,
+                    radius: p.radius,
+                });
+                serde_json::to_string(&player).unwrap()
+            }
+            _ => "null".to_string(),
+        }
     }
 
     #[wasm_bindgen]
     pub fn get_state(&mut self) -> String {
-        let player_pos = self
+        let player = self
             .state
             .world
             .matcher::<All<(Read<ecs::Position>, Read<ecs::Player>)>>()
-            .next()
-            .unwrap()
-            .0
-            .point;
+            .next();
 
         let enemies = self
             .state
@@ -116,9 +115,13 @@ impl Game {
             .collect::<Vec<_>>();
 
         let state = GameState {
-            player: Player {
-                x: player_pos.x,
-                y: player_pos.y,
+            player: match player {
+                Some((pos, p)) => Some(Player {
+                    x: pos.point.x,
+                    y: pos.point.y,
+                    radius: p.radius,
+                }),
+                _ => None,
             },
             enemies: enemies,
             shots: shots,
@@ -130,7 +133,7 @@ impl Game {
 
 #[derive(Serialize, Deserialize)]
 struct GameState {
-    player: Player,
+    player: Option<Player>,
     enemies: Vec<Enemy>,
     shots: Vec<Shot>,
 }
@@ -139,6 +142,7 @@ struct GameState {
 struct Player {
     x: f32,
     y: f32,
+    radius: f32,
 }
 
 #[derive(Serialize, Deserialize)]

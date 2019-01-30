@@ -58,6 +58,9 @@ if (isTouchDevice) {
                     const frontPosition = data.instance.frontPosition;
 
                     const player = JSON.parse(game.get_player_pos());
+                    if (player == null) {
+                        break;
+                    }
 
                     const aimPosX = player.x * CELL_SIZE + frontPosition.x;
                     const aimPosY = player.y * CELL_SIZE + frontPosition.y;
@@ -156,11 +159,12 @@ function draw(state) {
     else ctx.fillStyle = "#000";
 
     const player = state.player;
-
-    ctx.beginPath();
-    ctx.arc(player.x * CELL_SIZE, player.y * CELL_SIZE, CELL_SIZE / 4, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.stroke();
+    if (player != null) {
+        ctx.beginPath();
+        ctx.arc(player.x * CELL_SIZE, player.y * CELL_SIZE, CELL_SIZE * player.radius, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
+    }
 }
 
 setInterval(() => {

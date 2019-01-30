@@ -31,6 +31,7 @@ pub struct Settings {
 
 pub struct Player {
     max_speed: f32,
+    pub radius: f32,
 }
 pub struct Enemy {
     pub radius: f32,
@@ -104,7 +105,10 @@ impl MainState {
 
     pub fn init(self: &mut MainState) {
         self.world.append_components(Some((
-            Player { max_speed: 6. },
+            Player {
+                max_speed: 6.,
+                radius: 0.25,
+            },
             Position {
                 point: Point2::new(5., 10.),
             },
@@ -123,6 +127,7 @@ impl MainState {
     pub fn step(self: &mut MainState) {
         update_ttl(&mut self.world);
         remove_by_ttl(&mut self.world);
+        remove_damaged_players(&mut self.world);
 
         update_player_velocity(
             &mut self.world,
@@ -155,6 +160,25 @@ impl MainState {
 
     pub fn set_shoot_force(self: &mut MainState, force: i32) {
         self.input.shoot_force = force;
+    }
+}
+
+fn remove_damaged_players(world: &mut World) {
+    let player = world
+        .matcher_with_entities::<All<(Read<Position>, Read<Player>)>>()
+        .next();
+
+    if let Some((entity, (p_pos, p))) = player {
+        let any_collision =
+            world
+                .matcher::<All<(Read<Position>, Read<Enemy>)>>()
+                .any(|(e_pos, e)| {
+                    has_circles_collision(&e_pos.point, &p_pos.point, p.radius + e.radius)
+                });
+
+        if any_collision {
+            world.remove_entities(vec![entity])
+        }
     }
 }
 
@@ -392,7 +416,10 @@ mod tests {
     fn update_player_position_test() {
         let mut main_state = MainState::new();
         main_state.world.append_components(Some((
-            Player { max_speed: 10. },
+            Player {
+                max_speed: 10.,
+                radius: 0.25,
+            },
             Position {
                 point: Point2::origin(),
             },
