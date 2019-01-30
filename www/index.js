@@ -84,15 +84,12 @@ canvas.addEventListener("mousemove", event => {
     game.set_shoot_point(event.offsetX / CELL_SIZE, event.offsetY / CELL_SIZE);
 });
 
-let shoot_force = 1;
 document.addEventListener("mousedown", event => {
-    game.set_shoot_force(shoot_force);
     game.set_shooting(true);
 });
 
 document.addEventListener("mouseup", event => {
     game.set_shooting(false);
-    game.set_shoot_force((shoot_force *= -1));
 });
 
 // keyboard
@@ -117,6 +114,16 @@ document.addEventListener("keyup", event => {
     if (event.code == "KeyW" && player_speed.y == -1) player_speed.y = 0;
 
     game.set_player_direction(player_speed.x, player_speed.y);
+});
+
+let shoot_force = 1;
+game.set_shoot_force(shoot_force);
+
+document.addEventListener("keypress", event => {
+    if (event.code == "Space") {
+        shoot_force *= -1;
+        game.set_shoot_force(shoot_force);
+    }
 });
 
 const ctx = canvas.getContext("2d");
