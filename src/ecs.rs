@@ -116,7 +116,10 @@ impl MainState {
                 radius: 0.25,
             },
             Position {
-                point: Point2::new(5., 10.),
+                point: Point2::new(
+                    self.settings.world_size.x / 2.,
+                    self.settings.world_size.y / 2.,
+                ),
             },
             Velocity {
                 velocity: Vector2::new(0., 0.),
@@ -141,6 +144,7 @@ impl MainState {
             &self.settings,
         );
         update_player_position(&mut self.world);
+        return_player_to_warzone(&mut self.world, &self.settings);
 
         update_enemies_velocity(&mut self.world, &self.settings);
         update_enemies_position(&mut self.world);
@@ -253,6 +257,28 @@ fn update_player_position(world: &mut World) {
         .matcher::<All<(Write<Position>, Read<Velocity>, Read<Player>)>>()
         .for_each(|(p, v, _)| {
             p.point += v.velocity;
+        });
+}
+
+fn return_player_to_warzone(world: &mut World, settings: &Settings) {
+    world
+        .matcher::<All<(Write<Position>, Read<Player>)>>()
+        .for_each(|(pos, pl)| {
+            if pos.point.y - pl.radius < 0. {
+                pos.point.y = pl.radius;
+            }
+
+            if pos.point.x - pl.radius < 0. {
+                pos.point.x = pl.radius;
+            }
+
+            if pos.point.y + pl.radius > settings.world_size.y {
+                pos.point.y = settings.world_size.y - pl.radius;
+            }
+
+            if pos.point.x + pl.radius > settings.world_size.x {
+                pos.point.x = settings.world_size.x - pl.radius;
+            }
         });
 }
 
