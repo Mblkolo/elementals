@@ -1,4 +1,3 @@
-use rand::Rand;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -6,7 +5,6 @@ pub struct World {
     enemies: Vec<Enemy>,
     player: Player,
     latest_heat: Point,
-    rand: Rand,
     game_over: bool,
     scope: i32,
 }
@@ -105,8 +103,7 @@ use std::ptr;
 impl World {
     #[wasm_bindgen(constructor)]
     pub fn new() -> World {
-        let mut rand = Rand::new(0);
-        let enemies = (0..10).map(|i| create_enemy(&mut rand)).collect::<Vec<_>>();
+        let enemies = (0..10).map(|_i| create_enemy()).collect::<Vec<_>>();
 
         World {
             player: Player {
@@ -121,7 +118,6 @@ impl World {
             latest_heat: Point { x: -10., y: -10. },
             game_over: false,
             scope: 0,
-            rand: rand,
             enemies: enemies,
         }
     }
@@ -164,10 +160,10 @@ impl World {
                 self.enemies.remove(pos);
                 self.scope += 1;
 
-                self.enemies.push(create_enemy(&mut self.rand));
+                self.enemies.push(create_enemy());
 
-                if self.rand.rand() % 3 == 0 {
-                    self.enemies.push(create_enemy(&mut self.rand));
+                if rand::random::<i32>() % 3 == 0 {
+                    self.enemies.push(create_enemy());
                 }
             }
         } else {
@@ -216,16 +212,16 @@ impl World {
     }
 }
 
-fn create_enemy(rand: &mut Rand) -> Enemy {
-    let new_pos = if rand.rand() % 2 == 0 {
+fn create_enemy() -> Enemy {
+    let new_pos = if rand::random() {
         Point {
-            x: (25 + 24 * ((rand.rand() % 2) * 2 - 1)) as f32,
-            y: (rand.rand() % 50) as f32,
+            x: (25 + 24 * ((rand::random::<i32>() % 2) * 2 - 1)) as f32,
+            y: (rand::random::<i32>() % 50) as f32,
         }
     } else {
         Point {
-            x: (rand.rand() % 50) as f32,
-            y: (25 + 24 * ((rand.rand() % 2) * 2 - 1)) as f32,
+            x: (rand::random::<i32>() % 50) as f32,
+            y: (25 + 24 * ((rand::random::<i32>() % 2) * 2 - 1)) as f32,
         }
     };
 
@@ -278,7 +274,8 @@ fn get_fired_enemy(
                 Some(point) => Some((e, point)),
                 _ => None,
             }
-        }).collect::<Vec<_>>();
+        })
+        .collect::<Vec<_>>();
 
     fired_enemies.sort_by(|a, b| {
         let da = a.1.sub(&player_pos);
