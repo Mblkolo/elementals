@@ -8,7 +8,6 @@ extern crate wasm_bindgen;
 
 pub mod ecs;
 pub mod facade;
-pub mod game;
 pub mod math;
 mod utils;
 
@@ -28,11 +27,4 @@ cfg_if! {
 #[wasm_bindgen]
 extern "C" {
     fn alert(s: &str);
-}
-
-#[wasm_bindgen]
-pub fn greet() -> game::Point {
-    alert("Ничёси! Это работает!");
-
-    game::Point { x: 0.5, y: -0.234 }
 }
