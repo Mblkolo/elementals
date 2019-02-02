@@ -6,6 +6,8 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate wasm_bindgen;
 
+extern crate specs;
+
 pub mod ecs;
 pub mod facade;
 pub mod math;

@@ -5,12 +5,15 @@ use na::Vector2;
 use pyro::*;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
+//use specs::{World, Builder};
+use specs::{Builder, Component, ReadStorage, RunNow, System, VecStorage, WriteStorage};
 
 type Point = Point2<f32>;
 type Vector = Vector2<f32>;
 
 pub struct MainState {
     pub world: World,
+    pub spec_world: specs::World,
     input: Input,
     settings: Settings,
     rnd: SmallRng,
@@ -33,6 +36,11 @@ pub struct Player {
     max_speed: f32,
     pub radius: f32,
 }
+
+impl Component for Player {
+    type Storage = VecStorage<Self>;
+}
+
 pub struct Enemy {
     pub radius: f32,
     max_speed: f32,
@@ -85,15 +93,28 @@ pub struct Position {
     pub point: Point2<f32>,
 }
 
+impl Component for Position {
+    type Storage = VecStorage<Self>;
+}
+
 pub struct Velocity {
     velocity: Vector,
+}
+impl Component for Velocity {
+    type Storage = VecStorage<Self>;
 }
 
 impl MainState {
     pub fn new() -> MainState {
+        let mut spec_world = specs::World::new();
+        spec_world.register::<Position>();
+        spec_world.register::<Velocity>();
+        spec_world.register::<Player>();
+
         let world = World::new();
         MainState {
             world,
+            spec_world: spec_world,
             input: Input {
                 player_direction: Vector2::zeros(),
                 shoot_point: None,
@@ -127,6 +148,23 @@ impl MainState {
             Gun { tick_to_reload: 1 },
         )));
 
+        self.spec_world
+            .create_entity()
+            .with(Player {
+                max_speed: 6.,
+                radius: 0.25,
+            })
+            .with(Position {
+                point: Point2::new(
+                    self.settings.world_size.x / 2.,
+                    self.settings.world_size.y / 2.,
+                ),
+            })
+            .with(Velocity {
+                velocity: Vector2::new(0., 0.),
+            })
+            .build();
+
         self.world
             .append_components(Some((Spawner { tick_to_spawn: 0 }, Scope { scope: 0 })));
 
@@ -144,6 +182,10 @@ impl MainState {
             &self.settings,
         );
         update_player_position(&mut self.world);
+
+        let mut player_position_system = PlayerPositionSystem;
+        player_position_system.run_now(&self.spec_world.res);
+
         return_player_to_warzone(&mut self.world, &self.settings);
 
         update_enemies_velocity(&mut self.world, &self.settings);
@@ -258,6 +300,24 @@ fn update_player_position(world: &mut World) {
         .for_each(|(p, v, _)| {
             p.point += v.velocity;
         });
+}
+
+struct PlayerPositionSystem;
+
+impl<'a> System<'a> for PlayerPositionSystem {
+    type SystemData = (
+        WriteStorage<'a, Position>,
+        ReadStorage<'a, Velocity>,
+        ReadStorage<'a, Player>,
+    );
+
+    fn run(&mut self, (mut pos_storage, vel_storage, player_storage): Self::SystemData) {
+        use specs::Join;
+
+        for (p, v, _) in (&mut pos_storage, &vel_storage, &player_storage).join() {
+            p.point += v.velocity;
+        }
+    }
 }
 
 fn return_player_to_warzone(world: &mut World, settings: &Settings) {
