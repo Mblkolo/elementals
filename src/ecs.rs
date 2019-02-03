@@ -5,8 +5,10 @@ use na::Vector2;
 use pyro::*;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
-//use specs::{World, Builder};
-use specs::{Builder, Component, ReadStorage, RunNow, System, VecStorage, WriteStorage};
+use specs::{
+    Builder, Component, Dispatcher, DispatcherBuilder, ReadStorage, System, VecStorage,
+    WriteStorage,
+};
 
 type Point = Point2<f32>;
 type Vector = Vector2<f32>;
@@ -14,6 +16,7 @@ type Vector = Vector2<f32>;
 pub struct MainState {
     pub world: World,
     pub spec_world: specs::World,
+    dispatcher: Dispatcher<'static, 'static>,
     input: Input,
     settings: Settings,
     rnd: SmallRng,
@@ -25,11 +28,32 @@ pub struct Input {
     shoot_force: i32,
 }
 
+impl Default for Input {
+    fn default() -> Self {
+        Input {
+            player_direction: Vector::zeros(),
+            shoot_point: None,
+            shoot_force: 0,
+        }
+    }
+}
+
 pub struct Settings {
     world_size: Point,
     fps: i32,
     gun_reload_ticks: i32,
     tick_to_spawn: i32,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            world_size: Point::new(10., 10.),
+            fps: 50,
+            gun_reload_ticks: 10,
+            tick_to_spawn: 100,
+        }
+    }
 }
 
 pub struct Player {
@@ -107,11 +131,21 @@ impl Component for Velocity {
 impl MainState {
     pub fn new() -> MainState {
         let mut spec_world = specs::World::new();
-        spec_world.register::<Position>();
-        spec_world.register::<Velocity>();
-        spec_world.register::<Player>();
+        spec_world.add_resource(Settings {
+            world_size: Point::new(50., 40.),
+            fps: 50,
+            gun_reload_ticks: 5,
+            tick_to_spawn: 20,
+        });
+
+        let mut dispatcher = DispatcherBuilder::new()
+            .with(PlayerPositionSystem, "", &[])
+            .with(PlayerVelocitySystem, "", &[])
+            .build();
+        dispatcher.setup(&mut spec_world.res);
 
         let world = World::new();
+
         MainState {
             world,
             spec_world: spec_world,
@@ -126,6 +160,7 @@ impl MainState {
                 gun_reload_ticks: 5,
                 tick_to_spawn: 20,
             },
+            dispatcher: dispatcher,
             rnd: SmallRng::seed_from_u64(0),
         }
     }
@@ -183,8 +218,8 @@ impl MainState {
         );
         update_player_position(&mut self.world);
 
-        let mut player_position_system = PlayerPositionSystem;
-        player_position_system.run_now(&self.spec_world.res);
+        self.dispatcher.dispatch(&mut self.spec_world.res);
+        self.spec_world.maintain();
 
         return_player_to_warzone(&mut self.world, &self.settings);
 
@@ -206,6 +241,9 @@ impl MainState {
         }
 
         self.input.player_direction = direction.clone();
+
+        let mut delta = self.spec_world.write_resource::<Input>();
+        delta.player_direction = direction.clone();
     }
 
     pub fn set_shoot_point(self: &mut MainState, shoot_point: Option<Point>) {
@@ -300,6 +338,24 @@ fn update_player_position(world: &mut World) {
         .for_each(|(p, v, _)| {
             p.point += v.velocity;
         });
+}
+
+struct PlayerVelocitySystem;
+impl<'a> System<'a> for PlayerVelocitySystem {
+    type SystemData = (
+        WriteStorage<'a, Velocity>,
+        ReadStorage<'a, Player>,
+        specs::Read<'a, Input>,
+        specs::Read<'a, Settings>,
+    );
+
+    fn run(&mut self, (mut vel_storage, player_storage, input, settings): Self::SystemData) {
+        use specs::Join;
+
+        for (vel, player) in (&mut vel_storage, &player_storage).join() {
+            vel.velocity = input.player_direction * player.max_speed / settings.fps as f32;
+        }
+    }
 }
 
 struct PlayerPositionSystem;

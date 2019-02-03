@@ -84,11 +84,11 @@ impl Game {
 
     #[wasm_bindgen]
     pub fn get_state(&mut self) -> String {
-        let player = self
-            .state
-            .world
-            .matcher::<All<(Read<ecs::Position>, Read<ecs::Player>)>>()
-            .next();
+        use specs::Join;
+
+        let player_storage = self.state.spec_world.read_storage::<ecs::Player>();
+        let pos_storage = self.state.spec_world.read_storage::<ecs::Position>();
+        let player = (&pos_storage, &player_storage).join().next();
 
         let scope = self
             .state
