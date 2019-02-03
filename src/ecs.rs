@@ -56,13 +56,11 @@ impl Default for Settings {
     }
 }
 
+#[derive(Component, Debug)]
+#[storage(VecStorage)]
 pub struct Player {
     max_speed: f32,
     pub radius: f32,
-}
-
-impl Component for Player {
-    type Storage = VecStorage<Self>;
 }
 
 pub struct Enemy {
@@ -113,19 +111,16 @@ impl Enemy {
     }
 }
 
+#[derive(Component, Debug)]
+#[storage(VecStorage)]
 pub struct Position {
     pub point: Point2<f32>,
 }
 
-impl Component for Position {
-    type Storage = VecStorage<Self>;
-}
-
+#[derive(Component, Debug)]
+#[storage(VecStorage)]
 pub struct Velocity {
     velocity: Vector,
-}
-impl Component for Velocity {
-    type Storage = VecStorage<Self>;
 }
 
 impl MainState {
