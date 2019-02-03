@@ -96,10 +96,11 @@ impl Game {
             .matcher::<All<(Read<ecs::Scope>,)>>()
             .next();
 
-        let enemies = self
-            .state
-            .world
-            .matcher::<All<(Read<ecs::Position>, Read<ecs::Enemy>, Read<ecs::Color>)>>()
+        let enemy_storage = self.state.spec_world.read_storage::<ecs::Enemy>();
+        let color_storage = self.state.spec_world.read_storage::<ecs::Color>();
+
+        let enemies = (&pos_storage, &enemy_storage, &color_storage)
+            .join()
             .map(|(pos, enemy, color)| Enemy {
                 x: pos.point.x,
                 y: pos.point.y,

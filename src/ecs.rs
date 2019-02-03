@@ -63,6 +63,8 @@ pub struct Player {
     pub radius: f32,
 }
 
+#[derive(Component, Debug)]
+#[storage(VecStorage)]
 pub struct Enemy {
     pub radius: f32,
     max_speed: f32,
@@ -87,17 +89,23 @@ pub struct ShotTrace {
     pub to: Point,
 }
 
+#[derive(Component, Debug)]
+#[storage(VecStorage)]
 pub struct Color {
     pub is_white: bool,
     pub damage: i32,
 }
 
+#[derive(Component, Debug)]
+#[storage(VecStorage)]
 pub struct Spawner {
     pub tick_to_spawn: i32,
 }
 
 pub struct EnemyKillEvent {}
 
+#[derive(Component, Debug)]
+#[storage(VecStorage)]
 pub struct Scope {
     pub scope: u32,
 }
@@ -136,8 +144,16 @@ impl MainState {
         let mut dispatcher = DispatcherBuilder::new()
             .with(PlayerPositionSystem, "", &[])
             .with(PlayerVelocitySystem, "", &[])
+            .with(ReturnPlayerToWarzoneSystem, "", &[])
+            .with(EnemiesVelocitySystem, "", &[])
             .build();
+
         dispatcher.setup(&mut spec_world.res);
+
+        spec_world.register::<Color>();
+        spec_world.register::<Enemy>();
+        spec_world.register::<Spawner>();
+        spec_world.register::<Scope>();
 
         let world = World::new();
 
@@ -161,23 +177,6 @@ impl MainState {
     }
 
     pub fn init(self: &mut MainState) {
-        self.world.append_components(Some((
-            Player {
-                max_speed: 6.,
-                radius: 0.25,
-            },
-            Position {
-                point: Point2::new(
-                    self.settings.world_size.x / 2.,
-                    self.settings.world_size.y / 2.,
-                ),
-            },
-            Velocity {
-                velocity: Vector2::new(0., 0.),
-            },
-            Gun { tick_to_reload: 1 },
-        )));
-
         self.spec_world
             .create_entity()
             .with(Player {
@@ -195,39 +194,42 @@ impl MainState {
             })
             .build();
 
-        self.world
-            .append_components(Some((Spawner { tick_to_spawn: 0 }, Scope { scope: 0 })));
+        self.spec_world
+            .create_entity()
+            .with(Spawner { tick_to_spawn: 0 })
+            .with(Scope { scope: 0 })
+            .build();
 
-        (0..10).for_each(|_| create_enemy(&mut self.world, &self.settings, &mut self.rnd));
+        (0..10).for_each(|_| create_enemy2(&mut self.spec_world, &self.settings, &mut self.rnd));
     }
 
     pub fn step(self: &mut MainState) {
-        update_ttl(&mut self.world);
-        remove_by_ttl(&mut self.world);
-        remove_damaged_players(&mut self.world);
-
-        update_player_velocity(
-            &mut self.world,
-            &self.input.player_direction,
-            &self.settings,
-        );
-        update_player_position(&mut self.world);
-
         self.dispatcher.dispatch(&mut self.spec_world.res);
         self.spec_world.maintain();
 
-        return_player_to_warzone(&mut self.world, &self.settings);
+        // update_ttl(&mut self.world);
+        // remove_by_ttl(&mut self.world);
+        // remove_damaged_players(&mut self.world);
 
-        update_enemies_velocity(&mut self.world, &self.settings);
-        update_enemies_position(&mut self.world);
+        // update_player_velocity(
+        //     &mut self.world,
+        //     &self.input.player_direction,
+        //     &self.settings,
+        // );
+        // update_player_position(&mut self.world);
 
-        shoot_from_gun(&mut self.world, &mut self.input, &self.settings);
-        process_shots(&mut self.world);
-        remove_overcolored_enemies(&mut self.world);
+        // return_player_to_warzone(&mut self.world, &self.settings);
 
-        spawn_enemies(&mut self.world, &self.settings, &mut self.rnd);
+        // update_enemies_velocity(&mut self.world, &self.settings);
+        // update_enemies_position(&mut self.world);
 
-        update_scope(&mut self.world);
+        // shoot_from_gun(&mut self.world, &mut self.input, &self.settings);
+        // process_shots(&mut self.world);
+        // remove_overcolored_enemies(&mut self.world);
+
+        // spawn_enemies(&mut self.world, &self.settings, &mut self.rnd);
+
+        // update_scope(&mut self.world);
     }
 
     pub fn set_player_direction(self: &mut MainState, direction: &mut Vector) {
@@ -334,6 +336,37 @@ fn update_player_position(world: &mut World) {
             p.point += v.velocity;
         });
 }
+struct ReturnPlayerToWarzoneSystem;
+
+impl<'a> System<'a> for ReturnPlayerToWarzoneSystem {
+    type SystemData = (
+        WriteStorage<'a, Position>,
+        ReadStorage<'a, Player>,
+        specs::Read<'a, Settings>,
+    );
+
+    fn run(&mut self, (mut pos_storage, player_storage, settings): Self::SystemData) {
+        use specs::Join;
+
+        for (pos, pl) in (&mut pos_storage, &player_storage).join() {
+            if pos.point.y - pl.radius < 0. {
+                pos.point.y = pl.radius;
+            }
+
+            if pos.point.x - pl.radius < 0. {
+                pos.point.x = pl.radius;
+            }
+
+            if pos.point.y + pl.radius > settings.world_size.y {
+                pos.point.y = settings.world_size.y - pl.radius;
+            }
+
+            if pos.point.x + pl.radius > settings.world_size.x {
+                pos.point.x = settings.world_size.x - pl.radius;
+            }
+        }
+    }
+}
 
 struct PlayerVelocitySystem;
 impl<'a> System<'a> for PlayerVelocitySystem {
@@ -367,6 +400,36 @@ impl<'a> System<'a> for PlayerPositionSystem {
 
         for (p, v, _) in (&mut pos_storage, &vel_storage, &player_storage).join() {
             p.point += v.velocity;
+        }
+    }
+}
+
+struct EnemiesVelocitySystem;
+impl<'a> System<'a> for EnemiesVelocitySystem {
+    type SystemData = (
+        ReadStorage<'a, Position>,
+        ReadStorage<'a, Player>,
+        ReadStorage<'a, Enemy>,
+        WriteStorage<'a, Velocity>,
+        specs::Read<'a, Settings>,
+    );
+
+    fn run(
+        &mut self,
+        (pos_storage, player_storage, enemy_storage, mut vel_storage, settings): Self::SystemData,
+    ) {
+        use specs::Join;
+
+        let player = (&pos_storage, &player_storage).join().next();
+
+        if let Some((p_pos, _)) = player {
+            for (e_pos, e_vel, e) in (&pos_storage, &mut vel_storage, &enemy_storage).join() {
+                let direction = (p_pos.point - e_pos.point).try_normalize(0.001);
+                e_vel.velocity = match direction {
+                    Some(d) => d * e.max_speed / settings.fps as f32,
+                    None => Vector::zeros(),
+                }
+            }
         }
     }
 }
@@ -570,6 +633,33 @@ fn create_enemy<R: rand::Rng>(world: &mut World, settings: &Settings, rnd: &mut 
             damage: 0,
         },
     )));
+}
+
+fn create_enemy2<R: rand::Rng>(world: &mut specs::World, settings: &Settings, rnd: &mut R) {
+    let position = if rnd.gen() {
+        Point::new(
+            settings.world_size.x * (rnd.gen::<u32>() % 2) as f32,
+            settings.world_size.y * rnd.gen::<f32>(),
+        )
+    } else {
+        Point::new(
+            settings.world_size.x * rnd.gen::<f32>(),
+            settings.world_size.y * (rnd.gen::<u32>() % 2) as f32,
+        )
+    };
+
+    world
+        .create_entity()
+        .with(Enemy::default())
+        .with(Position { point: position })
+        .with(Velocity {
+            velocity: Vector::zeros(),
+        })
+        .with(Color {
+            is_white: rnd.gen::<u32>() % 2 == 0,
+            damage: 0,
+        })
+        .build();
 }
 
 #[cfg(test)]
