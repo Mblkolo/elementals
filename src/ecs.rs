@@ -6,8 +6,8 @@ use pyro::*;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 use specs::{
-    Builder, Component, Dispatcher, DispatcherBuilder, ReadStorage, System, VecStorage,
-    WriteStorage,
+    Builder, Component, Dispatcher, DispatcherBuilder, NullStorage, ReadStorage, System,
+    VecStorage, WriteStorage,
 };
 
 type Point = Point2<f32>;
@@ -17,7 +17,6 @@ pub struct MainState {
     pub world: World,
     pub spec_world: specs::World,
     dispatcher: Dispatcher<'static, 'static>,
-    input: Input,
     settings: Settings,
     rnd: SmallRng,
 }
@@ -70,20 +69,28 @@ pub struct Enemy {
     max_speed: f32,
 }
 
+#[derive(Component, Debug)]
+#[storage(VecStorage)]
 pub struct Gun {
     tick_to_reload: i32,
 }
 
+#[derive(Component, Debug)]
+#[storage(VecStorage)]
 pub struct Shot {
     from: Point,
     to: Point,
     force: i32,
 }
 
+#[derive(Component, Debug)]
+#[storage(VecStorage)]
 pub struct DeadByTtl {
     ttl: i32,
 }
 
+#[derive(Component, Debug)]
+#[storage(VecStorage)]
 pub struct ShotTrace {
     pub from: Point,
     pub to: Point,
@@ -102,7 +109,9 @@ pub struct Spawner {
     pub tick_to_spawn: i32,
 }
 
-pub struct EnemyKillEvent {}
+#[derive(Component, Debug, Default)]
+#[storage(NullStorage)]
+pub struct EnemyKillEvent;
 
 #[derive(Component, Debug)]
 #[storage(VecStorage)]
@@ -142,10 +151,16 @@ impl MainState {
         });
 
         let mut dispatcher = DispatcherBuilder::new()
+            .with(RemoveByTtlSystem, "", &[])
+            .with(UpdateTtlSystem, "", &[])
             .with(PlayerPositionSystem, "", &[])
             .with(PlayerVelocitySystem, "", &[])
             .with(ReturnPlayerToWarzoneSystem, "", &[])
             .with(EnemiesVelocitySystem, "", &[])
+            .with(EnemiesPositionSystem, "", &[])
+            .with(GunShotSystem, "", &[])
+            .with(ShotSystem, "", &[])
+            .with(RemoveOvercoloredEmenySystem, "", &[])
             .build();
 
         dispatcher.setup(&mut spec_world.res);
@@ -160,11 +175,6 @@ impl MainState {
         MainState {
             world,
             spec_world: spec_world,
-            input: Input {
-                player_direction: Vector2::zeros(),
-                shoot_point: None,
-                shoot_force: 0,
-            },
             settings: Settings {
                 world_size: Point::new(50., 40.),
                 fps: 50,
@@ -192,6 +202,7 @@ impl MainState {
             .with(Velocity {
                 velocity: Vector2::new(0., 0.),
             })
+            .with(Gun { tick_to_reload: 0 })
             .build();
 
         self.spec_world
@@ -207,9 +218,9 @@ impl MainState {
         self.dispatcher.dispatch(&mut self.spec_world.res);
         self.spec_world.maintain();
 
-        // update_ttl(&mut self.world);
-        // remove_by_ttl(&mut self.world);
-        // remove_damaged_players(&mut self.world);
+        //update_ttl(&mut self.world);
+        //remove_by_ttl(&mut self.world);
+        remove_damaged_players(&mut self.world);
 
         // update_player_velocity(
         //     &mut self.world,
@@ -223,13 +234,14 @@ impl MainState {
         // update_enemies_velocity(&mut self.world, &self.settings);
         // update_enemies_position(&mut self.world);
 
-        // shoot_from_gun(&mut self.world, &mut self.input, &self.settings);
-        // process_shots(&mut self.world);
-        // remove_overcolored_enemies(&mut self.world);
+        //shoot_from_gun(&mut self.world, &mut self.input, &self.settings);
+        //process_shots(&mut self.world);
+        //remove_overcolored_enemies(&mut self.world);
 
-        // spawn_enemies(&mut self.world, &self.settings, &mut self.rnd);
+        spawn_enemies(&mut self.world, &self.settings, &mut self.rnd);
 
-        // update_scope(&mut self.world);
+        update_scope(&mut self.world);
+        println!("ololo",);
     }
 
     pub fn set_player_direction(self: &mut MainState, direction: &mut Vector) {
@@ -237,18 +249,15 @@ impl MainState {
             direction.try_normalize_mut(0.01);
         }
 
-        self.input.player_direction = direction.clone();
-
-        let mut delta = self.spec_world.write_resource::<Input>();
-        delta.player_direction = direction.clone();
+        self.spec_world.write_resource::<Input>().player_direction = direction.clone();
     }
 
     pub fn set_shoot_point(self: &mut MainState, shoot_point: Option<Point>) {
-        self.input.shoot_point = shoot_point;
+        self.spec_world.write_resource::<Input>().shoot_point = shoot_point;
     }
 
     pub fn set_shoot_force(self: &mut MainState, force: i32) {
-        self.input.shoot_force = force;
+        self.spec_world.write_resource::<Input>().shoot_force = force;
     }
 }
 
@@ -305,37 +314,35 @@ fn spawn_enemies(world: &mut World, settings: &Settings, rnd: &mut SmallRng) {
     }
 }
 
-fn update_ttl(world: &mut World) {
-    world
-        .matcher::<All<(Write<DeadByTtl>,)>>()
-        .for_each(|(d,)| d.ttl -= 1);
+struct UpdateTtlSystem;
+
+impl<'a> System<'a> for UpdateTtlSystem {
+    type SystemData = (WriteStorage<'a, DeadByTtl>);
+
+    fn run(&mut self, mut ttl_storage: Self::SystemData) {
+        use specs::Join;
+
+        (&mut ttl_storage).join().for_each(|d| d.ttl -= 1);
+    }
 }
 
-fn remove_by_ttl(world: &mut World) {
-    let entities = world
-        .matcher_with_entities::<All<(Read<DeadByTtl>,)>>()
-        .filter(|(_, (d,))| d.ttl <= 0)
-        .map(|(e, _)| e)
-        .collect::<Vec<_>>();
+struct RemoveByTtlSystem;
 
-    world.remove_entities(entities);
+impl<'a> System<'a> for RemoveByTtlSystem {
+    type SystemData = (WriteStorage<'a, DeadByTtl>, specs::Entities<'a>);
+
+    fn run(&mut self, (ttl_storage, entities): Self::SystemData) {
+        use specs::Join;
+
+        (&entities, &ttl_storage)
+            .join()
+            .filter(|(_, d)| d.ttl <= 0)
+            .for_each(|(e, _)| {
+                entities.delete(e).unwrap();
+            });
+    }
 }
 
-fn update_player_velocity(world: &mut World, player_direction: &Vector, settings: &Settings) {
-    world
-        .matcher::<All<(Read<Player>, Write<Velocity>)>>()
-        .for_each(|(player, v)| {
-            v.velocity = player_direction * player.max_speed / settings.fps as f32;
-        });
-}
-
-fn update_player_position(world: &mut World) {
-    world
-        .matcher::<All<(Write<Position>, Read<Velocity>, Read<Player>)>>()
-        .for_each(|(p, v, _)| {
-            p.point += v.velocity;
-        });
-}
 struct ReturnPlayerToWarzoneSystem;
 
 impl<'a> System<'a> for ReturnPlayerToWarzoneSystem {
@@ -434,154 +441,205 @@ impl<'a> System<'a> for EnemiesVelocitySystem {
     }
 }
 
-fn return_player_to_warzone(world: &mut World, settings: &Settings) {
-    world
-        .matcher::<All<(Write<Position>, Read<Player>)>>()
-        .for_each(|(pos, pl)| {
-            if pos.point.y - pl.radius < 0. {
-                pos.point.y = pl.radius;
+struct EnemiesPositionSystem;
+impl<'a> System<'a> for EnemiesPositionSystem {
+    type SystemData = (
+        WriteStorage<'a, Position>,
+        ReadStorage<'a, Enemy>,
+        ReadStorage<'a, Velocity>,
+    );
+
+    fn run(&mut self, (mut pos_storage, enemy_storage, vel_storage): Self::SystemData) {
+        use specs::Join;
+        let mut enemies = (&mut pos_storage, &vel_storage, &enemy_storage)
+            .join()
+            .collect::<Vec<_>>();
+
+        for enemy_id in 0..enemies.len() {
+            let maybe_pos = {
+                let (e_pos, e_vel, enemy) = &enemies[enemy_id];
+                let new_pos = e_pos.point + e_vel.velocity;
+
+                let has_collision = enemies.iter().any(|(ae_pos, _, e)| {
+                    std::ptr::eq(e, enemy) == false
+                        && has_circles_collision(&ae_pos.point, &new_pos, e.radius + &enemy.radius)
+                });
+
+                match has_collision {
+                    true => None,
+                    false => Some(new_pos),
+                }
+            };
+
+            if let Some(pos) = maybe_pos {
+                enemies[enemy_id].0.point = pos;
             }
-
-            if pos.point.x - pl.radius < 0. {
-                pos.point.x = pl.radius;
-            }
-
-            if pos.point.y + pl.radius > settings.world_size.y {
-                pos.point.y = settings.world_size.y - pl.radius;
-            }
-
-            if pos.point.x + pl.radius > settings.world_size.x {
-                pos.point.x = settings.world_size.x - pl.radius;
-            }
-        });
-}
-
-fn update_enemies_position(world: &mut World) {
-    let mut enemies = world
-        .matcher::<All<(Write<Position>, Read<Velocity>, Read<Enemy>)>>()
-        .collect::<Vec<_>>();
-
-    for enemy_id in 0..enemies.len() {
-        let maybe_pos = {
-            let enemy = &enemies[enemy_id];
-            let new_pos = enemy.0.point + enemy.1.velocity;
-
-            let has_collision = enemies.iter().any(|e| {
-                std::ptr::eq(e, enemy) == false
-                    && has_circles_collision(&e.0.point, &new_pos, e.2.radius + &enemy.2.radius)
-            });
-
-            match has_collision {
-                true => None,
-                false => Some(new_pos),
-            }
-        };
-
-        if let Some(pos) = maybe_pos {
-            enemies[enemy_id].0.point = pos;
         }
     }
 }
 
-fn update_enemies_velocity(world: &mut World, settings: &Settings) {
-    let player = world
-        .matcher::<All<(Read<Position>, Read<Player>)>>()
-        .next();
+struct GunShotSystem;
+impl<'a> System<'a> for GunShotSystem {
+    type SystemData = (
+        specs::Entities<'a>,
+        WriteStorage<'a, Gun>,
+        WriteStorage<'a, Shot>,
+        WriteStorage<'a, DeadByTtl>,
+        ReadStorage<'a, Position>,
+        specs::Read<'a, Input>,
+        specs::Read<'a, Settings>,
+    );
 
-    if let Some((p_pos, _)) = player {
-        world
-            .matcher::<All<(Read<Position>, Write<Velocity>, Read<Enemy>)>>()
-            .for_each(|(e_pos, e_vel, e)| {
-                let direction = (p_pos.point - e_pos.point).try_normalize(0.001);
-                e_vel.velocity = match direction {
-                    Some(d) => d * e.max_speed / settings.fps as f32,
-                    None => Vector::zeros(),
-                }
-            });
+    fn run(
+        &mut self,
+        (
+            entities,
+            mut gun_storage,
+            mut shot_storage,
+            mut ttl_storage,
+            pos_storage,
+            input,
+            settings,
+        ): Self::SystemData,
+    ) {
+        use specs::Join;
+
+        if let Some(shoot_point) = input.shoot_point {
+            let shots = (&mut gun_storage, &pos_storage)
+                .join()
+                .filter_map(|(gun, pos)| {
+                    gun.tick_to_reload = match gun.tick_to_reload {
+                        x if x > 0 => x - 1,
+                        _ => settings.gun_reload_ticks,
+                    };
+
+                    match gun.tick_to_reload {
+                        0 => Some(Shot {
+                            from: pos.point,
+                            to: shoot_point,
+                            force: input.shoot_force,
+                        }),
+                        _ => None,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            for shot in shots {
+                entities
+                    .build_entity()
+                    .with(shot, &mut shot_storage)
+                    .with(DeadByTtl { ttl: 0 }, &mut ttl_storage)
+                    .build();
+            }
+        }
     }
 }
 
-fn shoot_from_gun(world: &mut World, input: &Input, settings: &Settings) {
-    if let Some(shoot_point) = input.shoot_point {
-        let shots = world
-            .matcher::<All<(Write<Gun>, Read<Position>)>>()
-            .filter_map(|(gun, pos)| {
-                gun.tick_to_reload = match gun.tick_to_reload {
-                    x if x > 0 => x - 1,
-                    _ => settings.gun_reload_ticks,
-                };
+struct ShotSystem;
+impl<'a> System<'a> for ShotSystem {
+    type SystemData = (
+        specs::Entities<'a>,
+        ReadStorage<'a, Shot>,
+        WriteStorage<'a, Color>,
+        ReadStorage<'a, Position>,
+        ReadStorage<'a, Enemy>,
+        WriteStorage<'a, DeadByTtl>,
+        WriteStorage<'a, ShotTrace>,
+    );
 
-                match gun.tick_to_reload {
-                    0 => Some(Shot {
-                        from: pos.point,
-                        to: shoot_point,
-                        force: input.shoot_force,
-                    }),
-                    _ => None,
-                }
-            })
-            .collect::<Vec<_>>();
+    fn run(
+        &mut self,
+        (
+            entities,
+            shot_storage,
+            mut color_storage,
+            pos_storage,
+            enemy_storage,
+            mut ttl_storage,
+            mut trace_storage,
+        ): Self::SystemData,
+    ) {
+        use specs::Join;
 
+        let shots = (&shot_storage).join().collect::<Vec<_>>();
+
+        let mut traces = Vec::new();
         for shot in shots {
-            world.append_components(Some((shot, DeadByTtl { ttl: 0 })));
-        }
-    }
-}
+            let enemies = (&enemy_storage, &pos_storage, &mut color_storage)
+                .join()
+                .collect::<Vec<_>>();
 
-fn process_shots(world: &mut World) {
-    let shots = world.matcher::<All<(Read<Shot>,)>>().collect::<Vec<_>>();
-
-    let mut shot_decals = Vec::new();
-    for (shot,) in shots {
-        let enemies = world
-            .matcher::<All<(Read<Enemy>, Read<Position>, Write<Color>)>>()
-            .collect::<Vec<_>>();
-
-        let mut enemies_hits = vec![];
-        for (enemy, enemy_pos, color) in enemies {
-            let hit = get_enemy_hit_point(&shot, &enemy, &enemy_pos.point);
-            if let Some(hit_pos) = hit {
-                enemies_hits.push((color, hit_pos));
+            let mut enemies_hits = vec![];
+            for (enemy, enemy_pos, color) in enemies {
+                let hit = get_enemy_hit_point(&shot, &enemy, &enemy_pos.point);
+                if let Some(hit_pos) = hit {
+                    enemies_hits.push((color, hit_pos));
+                }
             }
-        }
 
-        enemies_hits
-            .sort_by(|(_, a), (_, b)| compare_vector_lengths(&(a - shot.from), &(b - shot.from)));
+            enemies_hits.sort_by(|(_, a), (_, b)| {
+                compare_vector_lengths(&(a - shot.from), &(b - shot.from))
+            });
 
-        let enemy_hit = enemies_hits.first_mut();
-        if let Some((color, _)) = enemy_hit {
-            color.damage = shot.force;
-        }
+            let enemy_hit = enemies_hits.first_mut();
+            if let Some((color, _)) = enemy_hit {
+                color.damage = shot.force;
+            }
 
-        shot_decals.push((
-            ShotTrace {
+            traces.push(ShotTrace {
                 from: shot.from.clone(),
                 to: match enemy_hit {
                     Some((_, hit)) => *hit,
                     _ => shot.to.clone(),
                 },
-            },
-            DeadByTtl { ttl: 5 },
-        ))
-    }
+            })
+        }
 
-    world.append_components(shot_decals);
+        //DeadByTtl { ttl: 5 },
+        for trace in traces {
+            entities
+                .build_entity()
+                .with(trace, &mut trace_storage)
+                .with(DeadByTtl { ttl: 5 }, &mut ttl_storage)
+                .build();
+        }
+    }
 }
 
-fn remove_overcolored_enemies(world: &mut World) {
-    let enemies = world
-        .matcher_with_entities::<All<(Read<Enemy>, Read<Color>)>>()
-        .filter(|(_, (_, color))| {
-            color.is_white && color.damage > 0 || color.is_white == false && color.damage < 0
-        })
-        .map(|(entity, _)| entity)
-        .collect::<Vec<_>>();
+struct RemoveOvercoloredEmenySystem;
+impl<'a> System<'a> for RemoveOvercoloredEmenySystem {
+    type SystemData = (
+        specs::Entities<'a>,
+        ReadStorage<'a, Color>,
+        ReadStorage<'a, Enemy>,
+        WriteStorage<'a, EnemyKillEvent>,
+    );
 
-    for _ in 0..enemies.len() {
-        world.append_components(Some((EnemyKillEvent {},)));
+    fn run(
+        &mut self,
+        (entities, color_storage, enemy_storage, mut kill_event_storage): Self::SystemData,
+    ) {
+        use specs::Join;
+
+        let enemies = (&entities, &enemy_storage, &color_storage)
+            .join()
+            .filter(|(_, _, color)| {
+                color.is_white && color.damage > 0 || color.is_white == false && color.damage < 0
+            })
+            .map(|(entity, _, _)| entity)
+            .collect::<Vec<_>>();
+
+        for _ in 0..enemies.len() {
+            entities
+                .build_entity()
+                .with(EnemyKillEvent {}, &mut kill_event_storage)
+                .build();
+        }
+
+        for enemy in enemies {
+            entities.delete(enemy).unwrap();
+        }
     }
-
-    world.remove_entities(enemies);
 }
 
 fn get_enemy_hit_point(shot: &Shot, enemy: &Enemy, enemy_pos: &Point) -> Option<Point> {
@@ -667,92 +725,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn update_player_position_test() {
-        let mut main_state = MainState::new();
-        main_state.world.append_components(Some((
-            Player {
-                max_speed: 10.,
-                radius: 0.25,
-            },
-            Position {
-                point: Point2::origin(),
-            },
-            Velocity {
-                velocity: Vector2::new(1., 2.),
-            },
-        )));
-
-        update_player_position(&mut main_state.world);
-
-        let entities = main_state.world.entities().collect::<Vec<_>>();
-        assert_eq!(entities.len(), 1);
-
-        let position = main_state.world.get_component::<Position>(entities[0]);
-        assert!(position.is_some());
-        assert_eq!(position.unwrap().point, Point2::new(1., 2.));
-    }
-
-    #[test]
     fn distance_squared_test() {
         let distance = na::distance_squared(&Point2::new(0., 0.), &Point2::new(3., 4.));
         assert_eq!(25., distance);
-    }
-
-    #[test]
-    fn update_enemies_position_test() {
-        let mut main_state = MainState::new();
-        main_state.world.append_components(Some((
-            Enemy::default(),
-            Position {
-                point: Point2::new(0., 0.),
-            },
-            Velocity {
-                velocity: Vector2::new(1., 2.),
-            },
-        )));
-
-        update_enemies_position(&mut main_state.world);
-
-        let entities = main_state.world.entities().collect::<Vec<_>>();
-        assert_eq!(entities.len(), 1);
-
-        let position = main_state.world.get_component::<Position>(entities[0]);
-        assert!(position.is_some());
-        assert_eq!(position.unwrap().point, Point2::new(1., 2.));
-    }
-
-    #[test]
-    fn update_enemies_position_with_collision_enemies_test() {
-        let mut main_state = MainState::new();
-        main_state.world.append_components(Some((
-            Enemy::default(),
-            Position {
-                point: Point2::new(0., 0.),
-            },
-            Velocity {
-                velocity: Vector2::new(0.1, 0.2),
-            },
-        )));
-        main_state.world.append_components(Some((
-            Enemy::default(),
-            Position {
-                point: Point2::new(0., 0.),
-            },
-            Velocity {
-                velocity: Vector2::new(0.1, 0.2),
-            },
-        )));
-
-        update_enemies_position(&mut main_state.world);
-
-        let entities = main_state.world.entities().collect::<Vec<_>>();
-        assert_eq!(entities.len(), 2);
-
-        let position = main_state.world.get_component::<Position>(entities[0]);
-        assert_eq!(position.unwrap().point, Point2::new(0., 0.));
-
-        let position = main_state.world.get_component::<Position>(entities[1]);
-        assert_eq!(position.unwrap().point, Point2::new(0., 0.));
     }
 
     #[test]

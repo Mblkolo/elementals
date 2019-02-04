@@ -133,7 +133,6 @@ function draw(state) {
     ctx.strokeRect(0, 0, 50 * CELL_SIZE, 40 * CELL_SIZE);
 
     ctx.fillStyle = "#000";
-    console.log(state.scope);
     ctx.fillText(state.scope.toString(), 50, 50);
 
     ctx.strokeStyle = "#000";

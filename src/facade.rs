@@ -109,11 +109,10 @@ impl Game {
             })
             .collect::<Vec<_>>();
 
-        let shots = self
-            .state
-            .world
-            .matcher::<All<(Read<ecs::ShotTrace>,)>>()
-            .map(|(decal,)| Shot {
+        let trace_storage = self.state.spec_world.read_storage::<ecs::ShotTrace>();
+        let shots = (&trace_storage)
+            .join()
+            .map(|decal| Shot {
                 from_x: decal.from.x,
                 from_y: decal.from.y,
                 to_x: decal.to.x,
