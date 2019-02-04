@@ -1,6 +1,5 @@
 use crate::ecs;
 use na::geometry::Point2;
-use pyro::{All, Read};
 use serde_derive::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -63,11 +62,12 @@ impl Game {
 
     #[wasm_bindgen]
     pub fn get_player_pos(&mut self) -> String {
-        let player_entity = self
-            .state
-            .world
-            .matcher::<All<(Read<ecs::Position>, Read<ecs::Player>)>>()
-            .next();
+        use specs::Join;
+
+        let player_storage = self.state.spec_world.read_storage::<ecs::Player>();
+        let pos_storage = self.state.spec_world.read_storage::<ecs::Position>();
+
+        let player_entity = (&pos_storage, &player_storage).join().next();
 
         match player_entity {
             Some((pos, p)) => {
@@ -90,11 +90,8 @@ impl Game {
         let pos_storage = self.state.spec_world.read_storage::<ecs::Position>();
         let player = (&pos_storage, &player_storage).join().next();
 
-        let scope = self
-            .state
-            .world
-            .matcher::<All<(Read<ecs::Scope>,)>>()
-            .next();
+        let scope_storage = self.state.spec_world.read_storage::<ecs::Scope>();
+        let scope = (&scope_storage).join().next();
 
         let enemy_storage = self.state.spec_world.read_storage::<ecs::Enemy>();
         let color_storage = self.state.spec_world.read_storage::<ecs::Color>();
@@ -130,7 +127,7 @@ impl Game {
                 _ => None,
             },
             scope: match scope {
-                Some((s,)) => s.scope,
+                Some(s) => s.scope,
                 _ => 0,
             },
             enemies: enemies,

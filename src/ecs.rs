@@ -2,7 +2,6 @@ use crate::math;
 use core::cmp::Ordering;
 use na::geometry::*;
 use na::Vector2;
-use pyro::*;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 use specs::{
@@ -14,7 +13,6 @@ type Point = Point2<f32>;
 type Vector = Vector2<f32>;
 
 pub struct MainState {
-    pub world: World,
     pub spec_world: specs::World,
     dispatcher: Dispatcher<'static, 'static>,
     settings: Settings,
@@ -161,6 +159,8 @@ impl MainState {
             .with(GunShotSystem, "", &[])
             .with(ShotSystem, "", &[])
             .with(RemoveOvercoloredEmenySystem, "", &[])
+            .with(DamagePlayerSystem, "", &[])
+            .with(ScopeSystem, "", &[])
             .build();
 
         dispatcher.setup(&mut spec_world.res);
@@ -170,10 +170,7 @@ impl MainState {
         spec_world.register::<Spawner>();
         spec_world.register::<Scope>();
 
-        let world = World::new();
-
         MainState {
-            world,
             spec_world: spec_world,
             settings: Settings {
                 world_size: Point::new(50., 40.),
@@ -211,37 +208,12 @@ impl MainState {
             .with(Scope { scope: 0 })
             .build();
 
-        (0..10).for_each(|_| create_enemy2(&mut self.spec_world, &self.settings, &mut self.rnd));
+        (0..10).for_each(|_| create_enemy(&mut self.spec_world, &self.settings, &mut self.rnd));
     }
 
     pub fn step(self: &mut MainState) {
         self.dispatcher.dispatch(&mut self.spec_world.res);
         self.spec_world.maintain();
-
-        //update_ttl(&mut self.world);
-        //remove_by_ttl(&mut self.world);
-        remove_damaged_players(&mut self.world);
-
-        // update_player_velocity(
-        //     &mut self.world,
-        //     &self.input.player_direction,
-        //     &self.settings,
-        // );
-        // update_player_position(&mut self.world);
-
-        // return_player_to_warzone(&mut self.world, &self.settings);
-
-        // update_enemies_velocity(&mut self.world, &self.settings);
-        // update_enemies_position(&mut self.world);
-
-        //shoot_from_gun(&mut self.world, &mut self.input, &self.settings);
-        //process_shots(&mut self.world);
-        //remove_overcolored_enemies(&mut self.world);
-
-        spawn_enemies(&mut self.world, &self.settings, &mut self.rnd);
-
-        update_scope(&mut self.world);
-        println!("ololo",);
     }
 
     pub fn set_player_direction(self: &mut MainState, direction: &mut Vector) {
@@ -261,58 +233,79 @@ impl MainState {
     }
 }
 
-fn update_scope(world: &mut World) {
-    let scope = world.matcher::<All<(Write<Scope>,)>>().next();
+struct ScopeSystem;
 
-    if let Some((s,)) = scope {
-        let kills = world
-            .matcher_with_entities::<All<(Read<EnemyKillEvent>,)>>()
+impl<'a> System<'a> for ScopeSystem {
+    type SystemData = (
+        WriteStorage<'a, Scope>,
+        ReadStorage<'a, EnemyKillEvent>,
+        specs::Entities<'a>,
+    );
+
+    fn run(&mut self, (mut scope_storage, kill_event_storage, entities): Self::SystemData) {
+        use specs::Join;
+
+        let scope = (&mut scope_storage).join().next();
+        let kills = (&entities, &kill_event_storage)
+            .join()
             .map(|(e, _)| e)
             .collect::<Vec<_>>();
 
-        s.scope += kills.len() as u32;
+        if let Some(s) = scope {
+            s.scope += kills.len() as u32;
+        }
 
-        world.remove_entities(kills);
-    }
-}
-
-fn remove_damaged_players(world: &mut World) {
-    let player = world
-        .matcher_with_entities::<All<(Read<Position>, Read<Player>)>>()
-        .next();
-
-    if let Some((entity, (p_pos, p))) = player {
-        let any_collision =
-            world
-                .matcher::<All<(Read<Position>, Read<Enemy>)>>()
-                .any(|(e_pos, e)| {
-                    has_circles_collision(&e_pos.point, &p_pos.point, p.radius + e.radius)
-                });
-
-        if any_collision {
-            world.remove_entities(vec![entity])
+        for e in kills {
+            entities.delete(e).unwrap();
         }
     }
 }
 
-fn spawn_enemies(world: &mut World, settings: &Settings, rnd: &mut SmallRng) {
-    let mut count = 0;
+struct DamagePlayerSystem;
 
-    world
-        .matcher::<All<(Write<Spawner>,)>>()
-        .for_each(|(spawner,)| {
-            if spawner.tick_to_spawn <= 0 {
-                count += 1;
-                spawner.tick_to_spawn = settings.tick_to_spawn
-            } else {
-                spawner.tick_to_spawn -= 1
+impl<'a> System<'a> for DamagePlayerSystem {
+    type SystemData = (
+        ReadStorage<'a, Position>,
+        ReadStorage<'a, Player>,
+        ReadStorage<'a, Enemy>,
+        specs::Entities<'a>,
+    );
+
+    fn run(&mut self, (pos_storage, player_storage, enemy_storage, entities): Self::SystemData) {
+        use specs::Join;
+
+        let player = (&entities, &pos_storage, &player_storage).join().next();
+
+        if let Some((entity, p_pos, p)) = player {
+            let any_collision = (&pos_storage, &enemy_storage).join().any(|(e_pos, e)| {
+                has_circles_collision(&e_pos.point, &p_pos.point, p.radius + e.radius)
+            });
+
+            if any_collision {
+                entities.delete(entity).unwrap();
             }
-        });
-
-    for _ in 0..count {
-        create_enemy(world, settings, rnd);
+        }
     }
 }
+
+// fn spawn_enemies(world: &mut World, settings: &Settings, rnd: &mut SmallRng) {
+//     let mut count = 0;
+
+//     world
+//         .matcher::<All<(Write<Spawner>,)>>()
+//         .for_each(|(spawner,)| {
+//             if spawner.tick_to_spawn <= 0 {
+//                 count += 1;
+//                 spawner.tick_to_spawn = settings.tick_to_spawn
+//             } else {
+//                 spawner.tick_to_spawn -= 1
+//             }
+//         });
+
+//     for _ in 0..count {
+//         create_enemy(world, settings, rnd);
+//     }
+// }
 
 struct UpdateTtlSystem;
 
@@ -667,33 +660,7 @@ fn has_circles_collision(a: &Point2<f32>, b: &Point2<f32>, minimum_distance: f32
     distance < minimum_distance * minimum_distance
 }
 
-fn create_enemy<R: rand::Rng>(world: &mut World, settings: &Settings, rnd: &mut R) {
-    let position = if rnd.gen() {
-        Point::new(
-            settings.world_size.x * (rnd.gen::<u32>() % 2) as f32,
-            settings.world_size.y * rnd.gen::<f32>(),
-        )
-    } else {
-        Point::new(
-            settings.world_size.x * rnd.gen::<f32>(),
-            settings.world_size.y * (rnd.gen::<u32>() % 2) as f32,
-        )
-    };
-
-    world.append_components(Some((
-        Enemy::default(),
-        Position { point: position },
-        Velocity {
-            velocity: Vector::zeros(),
-        },
-        Color {
-            is_white: rnd.gen::<u32>() % 2 == 0,
-            damage: 0,
-        },
-    )));
-}
-
-fn create_enemy2<R: rand::Rng>(world: &mut specs::World, settings: &Settings, rnd: &mut R) {
+fn create_enemy<R: rand::Rng>(world: &mut specs::World, settings: &Settings, rnd: &mut R) {
     let position = if rnd.gen() {
         Point::new(
             settings.world_size.x * (rnd.gen::<u32>() % 2) as f32,
