@@ -3,10 +3,11 @@ use core::cmp::Ordering;
 use na::geometry::*;
 use na::Vector2;
 use rand::rngs::SmallRng;
+use rand::Rng;
 use rand::SeedableRng;
 use specs::{
-    Builder, Component, Dispatcher, DispatcherBuilder, NullStorage, ReadStorage, System,
-    VecStorage, WriteStorage,
+    Builder, Component, Dispatcher, DispatcherBuilder, NullStorage, Read, ReadStorage, System,
+    VecStorage, Write, WriteStorage,
 };
 
 type Point = Point2<f32>;
@@ -39,7 +40,7 @@ pub struct Settings {
     world_size: Point,
     fps: i32,
     gun_reload_ticks: i32,
-    tick_to_spawn: i32,
+    rnd: SmallRng,
 }
 
 impl Default for Settings {
@@ -48,7 +49,7 @@ impl Default for Settings {
             world_size: Point::new(10., 10.),
             fps: 50,
             gun_reload_ticks: 10,
-            tick_to_spawn: 100,
+            rnd: SmallRng::seed_from_u64(1),
         }
     }
 }
@@ -145,7 +146,7 @@ impl MainState {
             world_size: Point::new(50., 40.),
             fps: 50,
             gun_reload_ticks: 5,
-            tick_to_spawn: 20,
+            rnd: SmallRng::seed_from_u64(1),
         });
 
         let mut dispatcher = DispatcherBuilder::new()
@@ -161,6 +162,7 @@ impl MainState {
             .with(RemoveOvercoloredEmenySystem, "", &[])
             .with(DamagePlayerSystem, "", &[])
             .with(ScopeSystem, "", &[])
+            .with(SpawnEnemiesSystem, "", &[])
             .build();
 
         dispatcher.setup(&mut spec_world.res);
@@ -176,7 +178,7 @@ impl MainState {
                 world_size: Point::new(50., 40.),
                 fps: 50,
                 gun_reload_ticks: 5,
-                tick_to_spawn: 20,
+                rnd: SmallRng::seed_from_u64(1),
             },
             dispatcher: dispatcher,
             rnd: SmallRng::seed_from_u64(0),
@@ -288,24 +290,99 @@ impl<'a> System<'a> for DamagePlayerSystem {
     }
 }
 
-// fn spawn_enemies(world: &mut World, settings: &Settings, rnd: &mut SmallRng) {
-//     let mut count = 0;
+struct SpawnEnemiesSystem;
 
-//     world
-//         .matcher::<All<(Write<Spawner>,)>>()
-//         .for_each(|(spawner,)| {
-//             if spawner.tick_to_spawn <= 0 {
-//                 count += 1;
-//                 spawner.tick_to_spawn = settings.tick_to_spawn
-//             } else {
-//                 spawner.tick_to_spawn -= 1
-//             }
-//         });
+impl<'a> System<'a> for SpawnEnemiesSystem {
+    type SystemData = (
+        WriteStorage<'a, Position>,
+        WriteStorage<'a, Enemy>,
+        WriteStorage<'a, Velocity>,
+        WriteStorage<'a, Scope>,
+        WriteStorage<'a, Color>,
+        specs::Entities<'a>,
+        Write<'a, Settings>,
+    );
 
-//     for _ in 0..count {
-//         create_enemy(world, settings, rnd);
-//     }
-// }
+    fn run(
+        &mut self,
+        (
+            mut pos_storage,
+            mut enemy_storage,
+            mut vel_storage,
+            scope_storage,
+            mut color_storage,
+            entities,
+            mut settings,
+        ): Self::SystemData,
+    ) {
+        use specs::Join;
+
+        let maybe_scope = (&scope_storage).join().next();
+        if let Some(scope) = maybe_scope {
+            let target_count = scope.scope / 5 + 10;
+            let current_count = enemy_storage.count() as u32;
+            if current_count < target_count {
+                let position = if settings.rnd.gen() {
+                    Point::new(
+                        settings.world_size.x * (settings.rnd.gen::<u32>() % 2) as f32,
+                        settings.world_size.y * settings.rnd.gen::<f32>(),
+                    )
+                } else {
+                    Point::new(
+                        settings.world_size.x * settings.rnd.gen::<f32>(),
+                        settings.world_size.y * (settings.rnd.gen::<u32>() % 2) as f32,
+                    )
+                };
+
+                entities
+                    .build_entity()
+                    .with(Enemy::default(), &mut enemy_storage)
+                    .with(Position { point: position }, &mut pos_storage)
+                    .with(
+                        Velocity {
+                            velocity: Vector::zeros(),
+                        },
+                        &mut vel_storage,
+                    )
+                    .with(
+                        Color {
+                            is_white: settings.rnd.gen::<u32>() % 2 == 0,
+                            damage: 0,
+                        },
+                        &mut color_storage,
+                    )
+                    .build();
+            }
+        }
+    }
+}
+
+fn create_enemy<R: rand::Rng>(world: &mut specs::World, settings: &Settings, rnd: &mut R) {
+    let position = if rnd.gen() {
+        Point::new(
+            settings.world_size.x * (rnd.gen::<u32>() % 2) as f32,
+            settings.world_size.y * rnd.gen::<f32>(),
+        )
+    } else {
+        Point::new(
+            settings.world_size.x * rnd.gen::<f32>(),
+            settings.world_size.y * (rnd.gen::<u32>() % 2) as f32,
+        )
+    };
+
+    world
+        .create_entity()
+        .with(Enemy::default())
+        .with(Position { point: position })
+        .with(Velocity {
+            velocity: Vector::zeros(),
+        })
+        .with(Color {
+            is_white: rnd.gen::<u32>() % 2 == 0,
+            damage: 0,
+        })
+        .build();
+}
 
 struct UpdateTtlSystem;
 
@@ -411,7 +488,7 @@ impl<'a> System<'a> for EnemiesVelocitySystem {
         ReadStorage<'a, Player>,
         ReadStorage<'a, Enemy>,
         WriteStorage<'a, Velocity>,
-        specs::Read<'a, Settings>,
+        Read<'a, Settings>,
     );
 
     fn run(
@@ -501,19 +578,21 @@ impl<'a> System<'a> for GunShotSystem {
             let shots = (&mut gun_storage, &pos_storage)
                 .join()
                 .filter_map(|(gun, pos)| {
-                    gun.tick_to_reload = match gun.tick_to_reload {
-                        x if x > 0 => x - 1,
-                        _ => settings.gun_reload_ticks,
-                    };
-
-                    match gun.tick_to_reload {
+                    let shot = match gun.tick_to_reload {
                         0 => Some(Shot {
                             from: pos.point,
                             to: shoot_point,
                             force: input.shoot_force,
                         }),
                         _ => None,
-                    }
+                    };
+
+                    gun.tick_to_reload = match gun.tick_to_reload {
+                        x if x > 0 => x - 1,
+                        _ => settings.gun_reload_ticks,
+                    };
+
+                    shot
                 })
                 .collect::<Vec<_>>();
 
@@ -658,33 +737,6 @@ fn compare_vector_lengths(a: &Vector, &b: &Vector) -> Ordering {
 fn has_circles_collision(a: &Point2<f32>, b: &Point2<f32>, minimum_distance: f32) -> bool {
     let distance = na::distance_squared(a, b);
     distance < minimum_distance * minimum_distance
-}
-
-fn create_enemy<R: rand::Rng>(world: &mut specs::World, settings: &Settings, rnd: &mut R) {
-    let position = if rnd.gen() {
-        Point::new(
-            settings.world_size.x * (rnd.gen::<u32>() % 2) as f32,
-            settings.world_size.y * rnd.gen::<f32>(),
-        )
-    } else {
-        Point::new(
-            settings.world_size.x * rnd.gen::<f32>(),
-            settings.world_size.y * (rnd.gen::<u32>() % 2) as f32,
-        )
-    };
-
-    world
-        .create_entity()
-        .with(Enemy::default())
-        .with(Position { point: position })
-        .with(Velocity {
-            velocity: Vector::zeros(),
-        })
-        .with(Color {
-            is_white: rnd.gen::<u32>() % 2 == 0,
-            damage: 0,
-        })
-        .build();
 }
 
 #[cfg(test)]
