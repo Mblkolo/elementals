@@ -174,7 +174,16 @@ function draw(state) {
     }
 }
 
+let isPause = false;
+document.addEventListener("keypress", event => {
+    if (event.code == "KeyQ") {
+        isPause = !isPause;
+    }
+});
+
 setInterval(() => {
+    if (isPause) return;
+
     const state = JSON.parse(game.get_state());
     if (state.player == null) {
         return;
