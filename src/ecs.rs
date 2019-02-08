@@ -1,3 +1,5 @@
+pub mod physic;
+
 use crate::math;
 use core::cmp::Ordering;
 use na::geometry::*;
@@ -149,7 +151,10 @@ impl MainState {
             rnd: SmallRng::seed_from_u64(1),
         });
 
+        spec_world.add_resource(physic::Physic::default());
+
         let mut dispatcher = DispatcherBuilder::new()
+            .with(physic::PhysicSystem, "", &[])
             .with(RemoveByTtlSystem, "", &[])
             .with(UpdateTtlSystem, "", &[])
             .with(PlayerPositionSystem, "", &[])
