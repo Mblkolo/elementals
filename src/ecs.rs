@@ -176,6 +176,7 @@ impl MainState {
         spec_world.register::<Enemy>();
         spec_world.register::<Spawner>();
         spec_world.register::<Scope>();
+        spec_world.register::<physic::PhysicBody>();
 
         MainState {
             spec_world: spec_world,
@@ -191,6 +192,11 @@ impl MainState {
     }
 
     pub fn init(self: &mut MainState) {
+        let body_handle = {
+            let mut phy = self.spec_world.write_resource::<physic::Physic>();
+            physic::create_player_body(&mut phy)
+        };
+
         self.spec_world
             .create_entity()
             .with(Player {
@@ -207,6 +213,7 @@ impl MainState {
                 velocity: Vector2::new(0., 0.),
             })
             .with(Gun { tick_to_reload: 0 })
+            .with(body_handle)
             .build();
 
         self.spec_world
