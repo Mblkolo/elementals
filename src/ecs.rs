@@ -1,4 +1,6 @@
 pub mod physic;
+pub mod retained_storage;
+pub mod systems;
 
 use crate::math;
 use core::cmp::Ordering;
@@ -157,8 +159,10 @@ impl MainState {
             .with(physic::PhysicSystem, "", &[])
             .with(RemoveByTtlSystem, "", &[])
             .with(UpdateTtlSystem, "", &[])
-            .with(PlayerPositionSystem, "", &[])
             .with(PlayerVelocitySystem, "", &[])
+            //.with(PlayerPositionSystem, "", &[])
+            .with(systems::PlayerMovementSystem, "", &[])
+            .with(systems::PositionSyncSystem, "", &[])
             .with(ReturnPlayerToWarzoneSystem, "", &[])
             .with(EnemiesVelocitySystem, "", &[])
             .with(EnemiesPositionSystem, "", &[])
@@ -463,14 +467,13 @@ impl<'a> System<'a> for PlayerVelocitySystem {
         WriteStorage<'a, Velocity>,
         ReadStorage<'a, Player>,
         specs::Read<'a, Input>,
-        specs::Read<'a, Settings>,
     );
 
-    fn run(&mut self, (mut vel_storage, player_storage, input, settings): Self::SystemData) {
+    fn run(&mut self, (mut vel_storage, player_storage, input): Self::SystemData) {
         use specs::Join;
 
         for (vel, player) in (&mut vel_storage, &player_storage).join() {
-            vel.velocity = input.player_direction * player.max_speed / settings.fps as f32;
+            vel.velocity = input.player_direction * player.max_speed;
         }
     }
 }
@@ -482,13 +485,14 @@ impl<'a> System<'a> for PlayerPositionSystem {
         WriteStorage<'a, Position>,
         ReadStorage<'a, Velocity>,
         ReadStorage<'a, Player>,
+        specs::Read<'a, Settings>,
     );
 
-    fn run(&mut self, (mut pos_storage, vel_storage, player_storage): Self::SystemData) {
+    fn run(&mut self, (mut pos_storage, vel_storage, player_storage, settings): Self::SystemData) {
         use specs::Join;
 
         for (p, v, _) in (&mut pos_storage, &vel_storage, &player_storage).join() {
-            p.point += v.velocity;
+            p.point += v.velocity / settings.fps as f32;
         }
     }
 }
