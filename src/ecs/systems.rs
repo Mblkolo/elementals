@@ -1,5 +1,5 @@
 use super::physic::{Physic, PhysicBody};
-use super::{Player, Position, Velocity};
+use super::{Enemy, Player, Position, Velocity};
 use nphysics2d::algebra::Velocity2;
 use specs::{Join, Read, ReadStorage, System, Write, WriteStorage};
 
@@ -15,6 +15,23 @@ impl<'a> System<'a> for PlayerMovementSystem {
 
     fn run(&mut self, (mut physic, body_storage, player_storage, vel_storage): Self::SystemData) {
         for (b, _, vel) in (&body_storage, &player_storage, &vel_storage).join() {
+            let body = physic.world.rigid_body_mut(b.handle).unwrap();
+            body.set_velocity(Velocity2::linear(vel.velocity.x, vel.velocity.y));
+        }
+    }
+}
+
+pub struct EnemyMovementSystem;
+impl<'a> System<'a> for EnemyMovementSystem {
+    type SystemData = (
+        Write<'a, Physic>,
+        ReadStorage<'a, PhysicBody>,
+        ReadStorage<'a, Enemy>,
+        ReadStorage<'a, Velocity>,
+    );
+
+    fn run(&mut self, (mut physic, body_storage, enemy_storage, vel_storage): Self::SystemData) {
+        for (b, _, vel) in (&body_storage, &enemy_storage, &vel_storage).join() {
             let body = physic.world.rigid_body_mut(b.handle).unwrap();
             body.set_velocity(Velocity2::linear(vel.velocity.x, vel.velocity.y));
         }

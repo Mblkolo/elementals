@@ -10,7 +10,7 @@ use rand::rngs::SmallRng;
 use rand::Rng;
 use rand::SeedableRng;
 use specs::{
-    Builder, Component, Dispatcher, DispatcherBuilder, NullStorage, Read, ReadStorage, System,
+    Builder, Component, Dispatcher, DispatcherBuilder, NullStorage, ReadStorage, System,
     VecStorage, Write, WriteStorage,
 };
 
@@ -42,7 +42,6 @@ impl Default for Input {
 
 pub struct Settings {
     world_size: Point,
-    fps: i32,
     gun_reload_ticks: i32,
     rnd: SmallRng,
 }
@@ -51,7 +50,6 @@ impl Default for Settings {
     fn default() -> Self {
         Settings {
             world_size: Point::new(10., 10.),
-            fps: 50,
             gun_reload_ticks: 10,
             rnd: SmallRng::seed_from_u64(1),
         }
@@ -148,7 +146,6 @@ impl MainState {
         let mut spec_world = specs::World::new();
         spec_world.add_resource(Settings {
             world_size: Point::new(50., 40.),
-            fps: 50,
             gun_reload_ticks: 5,
             rnd: SmallRng::seed_from_u64(1),
         });
@@ -156,16 +153,16 @@ impl MainState {
         spec_world.add_resource(physic::Physic::default());
 
         let mut dispatcher = DispatcherBuilder::new()
+            .with(physic::RemoveBodyForDeletedEntitySystem, "", &[])
             .with(physic::PhysicSystem, "", &[])
             .with(RemoveByTtlSystem, "", &[])
             .with(UpdateTtlSystem, "", &[])
             .with(PlayerVelocitySystem, "", &[])
-            //.with(PlayerPositionSystem, "", &[])
             .with(systems::PlayerMovementSystem, "", &[])
-            .with(systems::PositionSyncSystem, "", &[])
             .with(ReturnPlayerToWarzoneSystem, "", &[])
             .with(EnemiesVelocitySystem, "", &[])
-            .with(EnemiesPositionSystem, "", &[])
+            .with(systems::EnemyMovementSystem, "", &[])
+            .with(systems::PositionSyncSystem, "", &[])
             .with(GunShotSystem, "", &[])
             .with(ShotSystem, "", &[])
             .with(RemoveOvercoloredEmenySystem, "", &[])
@@ -186,7 +183,6 @@ impl MainState {
             spec_world: spec_world,
             settings: Settings {
                 world_size: Point::new(50., 40.),
-                fps: 50,
                 gun_reload_ticks: 5,
                 rnd: SmallRng::seed_from_u64(1),
             },
@@ -315,8 +311,10 @@ impl<'a> System<'a> for SpawnEnemiesSystem {
         WriteStorage<'a, Velocity>,
         WriteStorage<'a, Scope>,
         WriteStorage<'a, Color>,
+        WriteStorage<'a, physic::PhysicBody>,
         specs::Entities<'a>,
         Write<'a, Settings>,
+        Write<'a, physic::Physic>,
     );
 
     fn run(
@@ -327,8 +325,10 @@ impl<'a> System<'a> for SpawnEnemiesSystem {
             mut vel_storage,
             scope_storage,
             mut color_storage,
+            mut body_storage,
             entities,
             mut settings,
+            mut physic,
         ): Self::SystemData,
     ) {
         use specs::Join;
@@ -350,6 +350,12 @@ impl<'a> System<'a> for SpawnEnemiesSystem {
                     )
                 };
 
+                let body = physic::create_enemy_body(
+                    &mut physic,
+                    0.5,
+                    Vector::new(position.x, position.y),
+                );
+
                 entities
                     .build_entity()
                     .with(Enemy::default(), &mut enemy_storage)
@@ -367,6 +373,7 @@ impl<'a> System<'a> for SpawnEnemiesSystem {
                         },
                         &mut color_storage,
                     )
+                    .with(body, &mut body_storage)
                     .build();
             }
         }
@@ -386,6 +393,11 @@ fn create_enemy<R: rand::Rng>(world: &mut specs::World, settings: &Settings, rnd
         )
     };
 
+    let body = {
+        let mut physic = world.write_resource::<physic::Physic>();
+        physic::create_enemy_body(&mut physic, 0.5, Vector::new(position.x, position.y))
+    };
+
     world
         .create_entity()
         .with(Enemy::default())
@@ -397,6 +409,7 @@ fn create_enemy<R: rand::Rng>(world: &mut specs::World, settings: &Settings, rnd
             is_white: rnd.gen::<u32>() % 2 == 0,
             damage: 0,
         })
+        .with(body)
         .build();
 }
 
@@ -478,25 +491,6 @@ impl<'a> System<'a> for PlayerVelocitySystem {
     }
 }
 
-struct PlayerPositionSystem;
-
-impl<'a> System<'a> for PlayerPositionSystem {
-    type SystemData = (
-        WriteStorage<'a, Position>,
-        ReadStorage<'a, Velocity>,
-        ReadStorage<'a, Player>,
-        specs::Read<'a, Settings>,
-    );
-
-    fn run(&mut self, (mut pos_storage, vel_storage, player_storage, settings): Self::SystemData) {
-        use specs::Join;
-
-        for (p, v, _) in (&mut pos_storage, &vel_storage, &player_storage).join() {
-            p.point += v.velocity / settings.fps as f32;
-        }
-    }
-}
-
 struct EnemiesVelocitySystem;
 impl<'a> System<'a> for EnemiesVelocitySystem {
     type SystemData = (
@@ -504,12 +498,11 @@ impl<'a> System<'a> for EnemiesVelocitySystem {
         ReadStorage<'a, Player>,
         ReadStorage<'a, Enemy>,
         WriteStorage<'a, Velocity>,
-        Read<'a, Settings>,
     );
 
     fn run(
         &mut self,
-        (pos_storage, player_storage, enemy_storage, mut vel_storage, settings): Self::SystemData,
+        (pos_storage, player_storage, enemy_storage, mut vel_storage): Self::SystemData,
     ) {
         use specs::Join;
 
@@ -519,46 +512,9 @@ impl<'a> System<'a> for EnemiesVelocitySystem {
             for (e_pos, e_vel, e) in (&pos_storage, &mut vel_storage, &enemy_storage).join() {
                 let direction = (p_pos.point - e_pos.point).try_normalize(0.001);
                 e_vel.velocity = match direction {
-                    Some(d) => d * e.max_speed / settings.fps as f32,
+                    Some(d) => d * e.max_speed,
                     None => Vector::zeros(),
                 }
-            }
-        }
-    }
-}
-
-struct EnemiesPositionSystem;
-impl<'a> System<'a> for EnemiesPositionSystem {
-    type SystemData = (
-        WriteStorage<'a, Position>,
-        ReadStorage<'a, Enemy>,
-        ReadStorage<'a, Velocity>,
-    );
-
-    fn run(&mut self, (mut pos_storage, enemy_storage, vel_storage): Self::SystemData) {
-        use specs::Join;
-        let mut enemies = (&mut pos_storage, &vel_storage, &enemy_storage)
-            .join()
-            .collect::<Vec<_>>();
-
-        for enemy_id in 0..enemies.len() {
-            let maybe_pos = {
-                let (e_pos, e_vel, enemy) = &enemies[enemy_id];
-                let new_pos = e_pos.point + e_vel.velocity;
-
-                let has_collision = enemies.iter().any(|(ae_pos, _, e)| {
-                    std::ptr::eq(e, enemy) == false
-                        && has_circles_collision(&ae_pos.point, &new_pos, e.radius + &enemy.radius)
-                });
-
-                match has_collision {
-                    true => None,
-                    false => Some(new_pos),
-                }
-            };
-
-            if let Some(pos) = maybe_pos {
-                enemies[enemy_id].0.point = pos;
             }
         }
     }

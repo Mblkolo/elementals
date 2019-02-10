@@ -1,6 +1,5 @@
-use super::retained_storage::RetainedStorage;
+use super::retained_storage::{Retained, RetainedStorage};
 use na::base::Vector2;
-use na::geometry::Isometry2;
 use ncollide2d::shape::{Ball, ShapeHandle};
 use nphysics2d::object::{BodyHandle, ColliderDesc, RigidBodyDesc};
 use nphysics2d::world::World;
@@ -31,6 +30,22 @@ impl<'a> System<'a> for PhysicSystem {
     }
 }
 
+pub struct RemoveBodyForDeletedEntitySystem;
+
+impl<'a> System<'a> for RemoveBodyForDeletedEntitySystem {
+    type SystemData = (Write<'a, Physic>, WriteStorage<'a, PhysicBody>);
+
+    fn run(&mut self, (mut physic, mut body_storage): Self::SystemData) {
+        let body_handles = body_storage
+            .retained()
+            .iter()
+            .map(|b| b.handle)
+            .collect::<Vec<_>>();
+
+        physic.world.remove_bodies(&body_handles);
+    }
+}
+
 #[derive(Clone)]
 pub struct PhysicBody {
     pub handle: BodyHandle,
@@ -41,11 +56,25 @@ impl Component for PhysicBody {
 }
 
 pub fn create_player_body(physic: &mut Physic) -> PhysicBody {
-    let shape = ShapeHandle::new(Ball::new(0.5));
-    let collider_desc = ColliderDesc::new(shape).position(Isometry2::new(Vector2::new(0., 0.), 0.));
+    let shape = ShapeHandle::new(Ball::new(0.25));
+    let collider_desc = ColliderDesc::new(shape);
 
     let handle = RigidBodyDesc::new()
         .collider(&collider_desc)
+        .translation(Vector2::new(20., 20.))
+        .build(&mut physic.world)
+        .handle();
+
+    PhysicBody { handle }
+}
+
+pub fn create_enemy_body(physic: &mut Physic, radius: f32, position: Vector2<f32>) -> PhysicBody {
+    let shape = ShapeHandle::new(Ball::new(radius));
+    let collider_desc = ColliderDesc::new(shape).density(1.0);
+
+    let handle = RigidBodyDesc::new()
+        .collider(&collider_desc)
+        .translation(position)
         .build(&mut physic.world)
         .handle();
 
