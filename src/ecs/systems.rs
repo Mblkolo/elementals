@@ -84,14 +84,27 @@ impl RadialForce {
 }
 
 impl ForceGenerator<f32> for RadialForce {
-    fn apply(&mut self, _: &IntegrationParameters<f32>, bodies: &mut BodySet<f32>) -> bool {
+    fn apply(&mut self, _inter: &IntegrationParameters<f32>, bodies: &mut BodySet<f32>) -> bool {
+        let friction = 20.0;
+        let speed_force = 20.0;
+        let max_speed = 5.0;
+
         for handle in &self.parts {
             if let Some(body) = bodies.body_mut(handle.0) {
                 let part = body.part(handle.1).unwrap();
 
-                let delta_pos = part.center_of_mass() - self.center;
+                let velocity = part.velocity();
+                if velocity.linear.norm() > max_speed {
+                    let force_vec = velocity.linear.normalize() * -friction;
+                    {
+                        let force = Force::linear(force_vec);
+                        body.apply_force(handle.1, &force, ForceType::AccelerationChange, false);
+                    }
+                }
 
-                let force = Force::linear(delta_pos * -1.0);
+                let part = body.part(handle.1).unwrap();
+                let delta_pos = self.center - part.center_of_mass();
+                let force = Force::linear(delta_pos.normalize() * speed_force);
                 body.apply_force(handle.1, &force, ForceType::AccelerationChange, false);
             }
         }
