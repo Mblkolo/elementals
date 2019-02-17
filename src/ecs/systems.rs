@@ -6,6 +6,9 @@ use specs::{Join, Read, ReadStorage, System, Write, WriteStorage};
 mod enemy_force_movement;
 pub use self::enemy_force_movement::EnemyForceMovementSystem;
 
+mod explosion;
+pub use self::explosion::ExplosionSystem;
+
 pub struct PlayerMovementSystem;
 
 impl<'a> System<'a> for PlayerMovementSystem {

@@ -1,3 +1,4 @@
+pub mod components;
 pub mod physic;
 pub mod retained_storage;
 pub mod systems;
@@ -162,6 +163,7 @@ impl MainState {
             .with(ReturnPlayerToWarzoneSystem, "", &[])
             .with(systems::EnemyForceMovementSystem::default(), "", &[])
             .with(systems::PositionSyncSystem, "", &[])
+            .with(systems::ExplosionSystem::default(), "", &[])
             .with(GunShotSystem, "", &[])
             .with(ShotSystem, "", &[])
             .with(RemoveOvercoloredEmenySystem, "", &[])
