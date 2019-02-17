@@ -1,6 +1,6 @@
 use super::super::physic::{Physic, PhysicBody};
 use super::{Enemy, Position};
-use crate::ecs::components::Explosion;
+use crate::ecs::EnemyKillEvent;
 use na::Point2;
 use nphysics2d::force_generator::{ForceGenerator, ForceGeneratorHandle};
 use nphysics2d::math::{Force, ForceType};
@@ -30,7 +30,7 @@ impl ForceGenerator<f32> for ExplosionForceGenerator {
             return true;
         }
 
-        let explosion_force = 50.0;
+        let explosion_force = 10.0;
 
         for handle in &self.parts {
             if let Some(body) = bodies.body_mut(handle.0) {
@@ -58,13 +58,14 @@ impl<'a> System<'a> for ExplosionSystem {
     type SystemData = (
         ReadStorage<'a, Enemy>,
         ReadStorage<'a, PhysicBody>,
-        ReadStorage<'a, Explosion>,
+        ReadStorage<'a, EnemyKillEvent>,
+        ReadStorage<'a, Position>,
         Write<'a, Physic>,
     );
 
     fn run(
         &mut self,
-        (enemy_storage, body_storage, explosion_storage, mut physic): Self::SystemData,
+        (enemy_storage, body_storage, kill_event_storage, position_storage, mut physic): Self::SystemData,
     ) {
         if self.generator_handle.is_none() {
             let generator = ExplosionForceGenerator::default();
@@ -78,9 +79,9 @@ impl<'a> System<'a> for ExplosionSystem {
             .downcast_mut::<ExplosionForceGenerator>()
             .unwrap();
 
-        generator.positions = (&explosion_storage)
+        generator.positions = (&kill_event_storage, &position_storage)
             .join()
-            .map(|x| x.position.clone())
+            .map(|(_, x)| x.point.clone())
             .collect::<Vec<_>>();
 
         generator.parts.clear();

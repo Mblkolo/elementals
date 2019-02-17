@@ -166,7 +166,7 @@ impl MainState {
             .with(systems::ExplosionSystem::default(), "", &[])
             .with(GunShotSystem, "", &[])
             .with(ShotSystem, "", &[])
-            .with(RemoveOvercoloredEmenySystem, "", &[])
+            .with(RemoveOvercoloredEnemySystem, "", &[])
             .with(DamagePlayerSystem, "", &[])
             .with(ScopeSystem, "", &[])
             .with(SpawnEnemiesSystem, "", &[])
@@ -622,18 +622,19 @@ impl<'a> System<'a> for ShotSystem {
     }
 }
 
-struct RemoveOvercoloredEmenySystem;
-impl<'a> System<'a> for RemoveOvercoloredEmenySystem {
+struct RemoveOvercoloredEnemySystem;
+impl<'a> System<'a> for RemoveOvercoloredEnemySystem {
     type SystemData = (
         specs::Entities<'a>,
         ReadStorage<'a, Color>,
         ReadStorage<'a, Enemy>,
         WriteStorage<'a, EnemyKillEvent>,
+        WriteStorage<'a, Position>,
     );
 
     fn run(
         &mut self,
-        (entities, color_storage, enemy_storage, mut kill_event_storage): Self::SystemData,
+        (entities, color_storage, enemy_storage, mut kill_event_storage, mut position_storage): Self::SystemData,
     ) {
         use specs::Join;
 
@@ -645,11 +646,19 @@ impl<'a> System<'a> for RemoveOvercoloredEmenySystem {
             .map(|(entity, _, _)| entity)
             .collect::<Vec<_>>();
 
-        for _ in 0..enemies.len() {
-            entities
-                .build_entity()
-                .with(EnemyKillEvent {}, &mut kill_event_storage)
-                .build();
+        for enemy in &enemies {
+            if let Some(pos) = position_storage.get(*enemy) {
+                entities
+                    .build_entity()
+                    .with(EnemyKillEvent {}, &mut kill_event_storage)
+                    .with(
+                        Position {
+                            point: pos.point.clone(),
+                        },
+                        &mut position_storage,
+                    )
+                    .build();
+            }
         }
 
         for enemy in enemies {
