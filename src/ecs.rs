@@ -161,8 +161,6 @@ impl MainState {
             .with(systems::PlayerMovementSystem, "", &[])
             .with(ReturnPlayerToWarzoneSystem, "", &[])
             .with(systems::EnemyForceMovementSystem::default(), "", &[])
-            //.with(EnemiesVelocitySystem, "", &[])
-            //.with(systems::EnemyMovementSystem, "", &[])
             .with(systems::PositionSyncSystem, "", &[])
             .with(GunShotSystem, "", &[])
             .with(ShotSystem, "", &[])
@@ -488,35 +486,6 @@ impl<'a> System<'a> for PlayerVelocitySystem {
 
         for (vel, player) in (&mut vel_storage, &player_storage).join() {
             vel.velocity = input.player_direction * player.max_speed;
-        }
-    }
-}
-
-struct EnemiesVelocitySystem;
-impl<'a> System<'a> for EnemiesVelocitySystem {
-    type SystemData = (
-        ReadStorage<'a, Position>,
-        ReadStorage<'a, Player>,
-        ReadStorage<'a, Enemy>,
-        WriteStorage<'a, Velocity>,
-    );
-
-    fn run(
-        &mut self,
-        (pos_storage, player_storage, enemy_storage, mut vel_storage): Self::SystemData,
-    ) {
-        use specs::Join;
-
-        let player = (&pos_storage, &player_storage).join().next();
-
-        if let Some((p_pos, _)) = player {
-            for (e_pos, e_vel, e) in (&pos_storage, &mut vel_storage, &enemy_storage).join() {
-                let direction = (p_pos.point - e_pos.point).try_normalize(0.001);
-                e_vel.velocity = match direction {
-                    Some(d) => d * e.max_speed,
-                    None => Vector::zeros(),
-                }
-            }
         }
     }
 }
